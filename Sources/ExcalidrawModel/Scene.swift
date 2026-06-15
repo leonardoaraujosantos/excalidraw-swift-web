@@ -1,0 +1,78 @@
+import Foundation
+
+/// In-memory editing model: the ordered element list plus the document's app
+/// state and file store. Provides id lookup and a mutation helper that maintains
+/// element versioning, mirroring upstream `mutateElement`.
+public struct Scene: Equatable, Sendable {
+    public private(set) var elements: [ExcalidrawElement]
+    public var appState: AppState
+    public var files: [String: BinaryFileData]
+
+    private var indexByID: [String: Int]
+
+    public init(
+        elements: [ExcalidrawElement] = [],
+        appState: AppState = AppState(),
+        files: [String: BinaryFileData] = [:]
+    ) {
+        self.elements = elements
+        self.appState = appState
+        self.files = files
+        indexByID = Self.buildIndex(elements)
+    }
+
+    public init(file: ExcalidrawFile) {
+        self.init(elements: file.elements, appState: file.appState, files: file.files)
+    }
+
+    public func toFile(source: String = "excalidraw-swift") -> ExcalidrawFile {
+        ExcalidrawFile(source: source, elements: elements, appState: appState, files: files)
+    }
+
+    public func element(id: String) -> ExcalidrawElement? {
+        guard let i = indexByID[id] else { return nil }
+        return elements[i]
+    }
+
+    /// Non-deleted elements in document order.
+    public var visibleElements: [ExcalidrawElement] {
+        elements.filter { !$0.base.isDeleted }
+    }
+
+    public mutating func add(_ element: ExcalidrawElement) {
+        indexByID[element.id] = elements.count
+        elements.append(element)
+    }
+
+    /// Apply a change to an element and bump its version (`version`,
+    /// `versionNonce`, `updated`) so it reconciles like an upstream edit.
+    @discardableResult
+    public mutating func mutate(
+        id: String,
+        timestamp: Int? = nil,
+        versionNonce: Int? = nil,
+        _ change: (inout ExcalidrawElement) -> Void
+    ) -> Bool {
+        guard let i = indexByID[id] else { return false }
+        change(&elements[i])
+        elements[i].base.version += 1
+        if let versionNonce { elements[i].base.versionNonce = versionNonce }
+        if let timestamp { elements[i].base.updated = timestamp }
+        return true
+    }
+
+    /// Soft-delete (Excalidraw keeps deleted elements for history/collab).
+    @discardableResult
+    public mutating func remove(id: String, timestamp: Int? = nil) -> Bool {
+        mutate(id: id, timestamp: timestamp) { $0.base.isDeleted = true }
+    }
+
+    private static func buildIndex(_ elements: [ExcalidrawElement]) -> [String: Int] {
+        var map: [String: Int] = [:]
+        map.reserveCapacity(elements.count)
+        for (i, element) in elements.enumerated() {
+            map[element.id] = i
+        }
+        return map
+    }
+}

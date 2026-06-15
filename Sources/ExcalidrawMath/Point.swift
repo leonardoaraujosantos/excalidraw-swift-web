@@ -3,8 +3,10 @@ import Foundation
 /// A 2D point in scene coordinates.
 ///
 /// Mirrors Excalidraw's `LocalPoint`/`GlobalPoint` tuple `[number, number]`
-/// (see `packages/math/src/point.ts`). Expanded incrementally in Phase 1.
-public struct Point: Equatable, Hashable, Codable, Sendable {
+/// (see `packages/math/src/point.ts`). Encodes to/from a two-element JSON
+/// array `[x, y]` to match the `.excalidraw` wire format (points, scale,
+/// fixedPoint, fixedSegment endpoints are all stored this way).
+public struct Point: Equatable, Hashable, Sendable {
     public var x: Double
     public var y: Double
 
@@ -29,6 +31,21 @@ public struct Point: Equatable, Hashable, Codable, Sendable {
 
     public static func + (lhs: Point, rhs: Point) -> Point {
         Point(lhs.x + rhs.x, lhs.y + rhs.y)
+    }
+}
+
+extension Point: Codable {
+    public init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        let x = try container.decode(Double.self)
+        let y = try container.decode(Double.self)
+        self.init(x, y)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.unkeyedContainer()
+        try container.encode(x)
+        try container.encode(y)
     }
 }
 

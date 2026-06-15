@@ -18,4 +18,14 @@ final class PointTests: XCTestCase {
     func testMagnitude() {
         XCTAssertEqual(Point(3, 4).magnitude, 5, accuracy: ExcalidrawMath.precision)
     }
+
+    func testEncodesAsJSONArray() throws {
+        let data = try JSONEncoder().encode(Point(1.5, -2))
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "[1.5,-2]")
+    }
+
+    func testDecodesFromJSONArray() throws {
+        let point = try JSONDecoder().decode(Point.self, from: Data("[3,4]".utf8))
+        XCTAssertEqual(point, Point(3, 4))
+    }
 }
