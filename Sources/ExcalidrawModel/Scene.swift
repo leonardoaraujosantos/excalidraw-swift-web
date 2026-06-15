@@ -61,6 +61,13 @@ public struct Scene: Equatable, Sendable {
         return true
     }
 
+    /// Replace the entire ordered element list (e.g. after a z-order change),
+    /// rebuilding the id index.
+    public mutating func replaceAll(_ elements: [ExcalidrawElement]) {
+        self.elements = elements
+        indexByID = Self.buildIndex(elements)
+    }
+
     /// Replace an element in place by id, without bumping its version. Used for
     /// live interaction updates (drag/resize); the net change is captured when
     /// the editor commits to history.
