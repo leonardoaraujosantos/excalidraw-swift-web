@@ -14,8 +14,10 @@ Legend: 🎯 milestone deliverable · 🧪 test focus · ⚠️ risk/hard part.
 - Import upstream test fixtures and a corpus of `.excalidraw` sample files.
 - 🎯 CI green on an empty but wired project; one trivial test per package.
 
-## Phase 1 — Domain core: model + geometry + file format
+## Phase 1 — Domain core: model + geometry + file format ✅
 **Goal:** the engine, fully testable, no UI.
+
+> **Status: complete.** Delivered: `ExcalidrawModel` (element model, file format, Scene, Store/Delta/History, Restore), `ExcalidrawMath` (point/vector/angle/range/line/segment/triangle/rectangle/polygon/ellipse/curve), `ExcalidrawGeometry` (bounds + hit-testing). `.excalidraw` round-trips diff-clean against the fixture corpus. **Deferred to later increments/phases:** full rocicorp fractional-indexing + legacy binding-v1 migration (incremental), property-level partial deltas & AppState history (collab-oriented), exact cubic-Bézier bounds and rounded-corner hit-testing, and the heavy curve algorithms — Newton curve↔line intersection, Legendre–Gauss arc length, elbow A* (Phase 7).
 - `ExcalidrawMath`: port `packages/math` (point, vector, line, segment, curve, ellipse, polygon, angle, range) 1:1. 🧪 property/fixture tests.
 - `ExcalidrawModel`: `ExcalidrawElement` enum + base props, AppState, Scene store with indices, fractional index, Store/Delta/History. Custom `Codable`.
 - Persistence: port `restore.ts` as the single load path (index gen, ref repair, binding migration, normalization, clamping). PNG-scene embed deferred.

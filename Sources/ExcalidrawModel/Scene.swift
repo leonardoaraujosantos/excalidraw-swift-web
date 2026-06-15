@@ -67,6 +67,25 @@ public struct Scene: Equatable, Sendable {
         mutate(id: id, timestamp: timestamp) { $0.base.isDeleted = true }
     }
 
+    /// Apply a `SceneDelta`, preserving element order. Insertions (a change with
+    /// a non-nil `after` for an unknown id) are appended; removals drop the id.
+    public mutating func apply(_ delta: SceneDelta) {
+        guard !delta.isEmpty else { return }
+        var byID = Dictionary(elements.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        var order = elements.map(\.id)
+        for (id, change) in delta.changes {
+            if let after = change.after {
+                if byID[id] == nil { order.append(id) }
+                byID[id] = after
+            } else {
+                byID[id] = nil
+                order.removeAll { $0 == id }
+            }
+        }
+        elements = order.compactMap { byID[$0] }
+        indexByID = Self.buildIndex(elements)
+    }
+
     private static func buildIndex(_ elements: [ExcalidrawElement]) -> [String: Int] {
         var map: [String: Int] = [:]
         map.reserveCapacity(elements.count)
