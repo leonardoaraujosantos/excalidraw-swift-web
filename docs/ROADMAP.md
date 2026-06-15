@@ -26,8 +26,10 @@ Legend: 🎯 milestone deliverable · 🧪 test focus · ⚠️ risk/hard part.
 - ⚠️ Round-trip fidelity vs excalidraw.com — build the interop corpus now.
 - 🎯 Load any real `.excalidraw`, mutate via API, save it back, diff-clean.
 
-## Phase 2 — RoughKit + first pixels
+## Phase 2 — RoughKit + first pixels ✅
 **Goal:** the hand-drawn look, one shape on screen.
+
+> **Status: complete.** `RoughKit` ports rough.js — RNG matched to `Math.imul(48271, seed)`, the double-stroke `_line`/`_doubleLine`/`linearPath`, `polygon`/`rectangle`, `curve`/`_computeEllipsePoints` ellipses, and fills (solid/hachure/cross-hatch/zigzag). `ExcalidrawRender` adds `RoughOptionsBuilder` (`generateRoughOptions`), `ElementDrawable`, `ShapeCache`, and a `SceneRenderer` (viewport transform, grid, per-element transform/opacity, stroke/fill, Core Text, images, freedraw). `SceneCanvasView` renders a real scene via SwiftUI `Canvas` + `withCGContext`; the app loads and draws a bundled `.excalidraw` (verified on the iOS 17 simulator). **Deferred:** exact rough.js numeric parity vs JS reference output (validate later); perfect-freehand pressure outlines and bundled Excalidraw fonts + exact text metrics (Phase 4); committed golden-image references; Metal fast-path if profiling needs it.
 - `RoughKit`: seeded RNG, polyline perturbation, `Drawable` generation for rectangle/ellipse/polygon/linearPath/curve; fill styles (hachure, cross-hatch, solid, zigzag); dash/dotted; roughness scaling; `preserveVertices`. Renders into `GraphicsContext`/`CGContext`.
 - `ExcalidrawRender`: SceneRenderer (static), ShapeCache, `Viewport` transforms, grid.
 - Minimal `CanvasView` rendering a loaded scene (read-only) with pan/zoom.

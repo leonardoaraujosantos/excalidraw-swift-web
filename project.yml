@@ -22,6 +22,10 @@ targets:
     dependencies:
       - package: ExcalidrawSwift
         product: ExcalidrawUI
+      - package: ExcalidrawSwift
+        product: ExcalidrawModel
+      - package: ExcalidrawSwift
+        product: ExcalidrawRender
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.amini.excalidraw.app

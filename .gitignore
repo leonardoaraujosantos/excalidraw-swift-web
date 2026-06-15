@@ -17,3 +17,4 @@ build/
 # Coverage / tooling
 *.profdata
 *.profraw
+render-preview.png

@@ -64,8 +64,8 @@ public struct ExcalidrawFile: Codable, Equatable, Sendable {
     public var files: [String: BinaryFileData]
 
     public init(
-        type: String = ExcalidrawModel.fileType,
-        version: Int = ExcalidrawModel.schemaVersion,
+        type: String = ExcalidrawSchema.fileType,
+        version: Int = ExcalidrawSchema.schemaVersion,
         source: String = "excalidraw-swift",
         elements: [ExcalidrawElement] = [],
         appState: AppState = AppState(),
@@ -81,8 +81,8 @@ public struct ExcalidrawFile: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        type = try c.decodeIfPresent(String.self, forKey: .type) ?? ExcalidrawModel.fileType
-        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? ExcalidrawModel.schemaVersion
+        type = try c.decodeIfPresent(String.self, forKey: .type) ?? ExcalidrawSchema.fileType
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? ExcalidrawSchema.schemaVersion
         source = try c.decodeIfPresent(String.self, forKey: .source) ?? "unknown"
         elements = try c.decodeIfPresent([ExcalidrawElement].self, forKey: .elements) ?? []
         appState = try c.decodeIfPresent(AppState.self, forKey: .appState) ?? AppState()

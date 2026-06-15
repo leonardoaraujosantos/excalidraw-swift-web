@@ -22,7 +22,7 @@ public enum ElementType: String, Codable, CaseIterable, Sendable {
     case iframe
 }
 
-public enum ExcalidrawModel {
+public enum ExcalidrawSchema {
     /// `.excalidraw` JSON schema version we read/write (upstream `VERSIONS.excalidraw`).
     public static let schemaVersion = 2
 

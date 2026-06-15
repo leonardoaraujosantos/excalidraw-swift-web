@@ -8,9 +8,9 @@ import Foundation
 public enum Restore {
     public static func restore(_ file: ExcalidrawFile) -> ExcalidrawFile {
         var file = file
-        file.type = ExcalidrawModel.fileType
-        if file.version < ExcalidrawModel.schemaVersion {
-            file.version = ExcalidrawModel.schemaVersion
+        file.type = ExcalidrawSchema.fileType
+        if file.version < ExcalidrawSchema.schemaVersion {
+            file.version = ExcalidrawSchema.schemaVersion
         }
         file.elements = restoreElements(file.elements)
         return file

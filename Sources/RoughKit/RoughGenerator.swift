@@ -33,15 +33,21 @@ public struct RoughGenerator: Sendable {
     /// Closed polygon through `points`.
     public func polygon(_ points: [Point], options: RoughOptions) -> Drawable {
         var rng = SeededRandom(seed: options.seed)
-        let ops = linearPathOps(points, close: true, options, &rng)
-        return Drawable(shape: "polygon", sets: [OpSet(type: .path, ops: ops)], options: options)
+        let outline = OpSet(type: .path, ops: linearPathOps(points, close: true, options, &rng))
+        var sets: [OpSet] = []
+        if let fill = fillOps(polygons: [points], options: options) { sets.append(fill) }
+        sets.append(outline)
+        return Drawable(shape: "polygon", sets: sets, options: options)
     }
 
     public func rectangle(x: Double, y: Double, width: Double, height: Double, options: RoughOptions) -> Drawable {
         var rng = SeededRandom(seed: options.seed)
         let pts = [Point(x, y), Point(x + width, y), Point(x + width, y + height), Point(x, y + height)]
-        let ops = linearPathOps(pts, close: true, options, &rng)
-        return Drawable(shape: "rectangle", sets: [OpSet(type: .path, ops: ops)], options: options)
+        let outline = OpSet(type: .path, ops: linearPathOps(pts, close: true, options, &rng))
+        var sets: [OpSet] = []
+        if let fill = fillOps(polygons: [pts], options: options) { sets.append(fill) }
+        sets.append(outline)
+        return Drawable(shape: "rectangle", sets: sets, options: options)
     }
 
     // MARK: Stroke primitives (rough.js renderer.ts)

@@ -16,7 +16,7 @@ final class ElementTypeTests: XCTestCase {
     }
 
     func testSchemaConstants() {
-        XCTAssertEqual(ExcalidrawModel.schemaVersion, 2)
-        XCTAssertEqual(ExcalidrawModel.fileType, "excalidraw")
+        XCTAssertEqual(ExcalidrawSchema.schemaVersion, 2)
+        XCTAssertEqual(ExcalidrawSchema.fileType, "excalidraw")
     }
 }

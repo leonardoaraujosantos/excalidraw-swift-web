@@ -1,0 +1,154 @@
+import CoreGraphics
+import ExcalidrawMath
+import ExcalidrawModel
+import XCTest
+@testable import ExcalidrawRender
+
+final class SceneRenderTests: XCTestCase {
+    private func context(width: Int, height: Int) -> CGContext {
+        CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+    }
+
+    private func rgb(_ ctx: CGContext, width: Int, height: Int) -> (UnsafeMutablePointer<UInt8>, Int) {
+        (ctx.data!.bindMemory(to: UInt8.self, capacity: width * height * 4), width * height * 4)
+    }
+
+    private func base(_ id: String, x: Double, y: Double, w: Double = 50, h: Double = 30) -> BaseProperties {
+        var b = BaseProperties(id: id)
+        b.x = x; b.y = y; b.width = w; b.height = h; b.seed = 1
+        return b
+    }
+
+    func testRendersNonBlankScene() {
+        var rect = base("r", x: 20, y: 20, w: 100, h: 60); rect.backgroundColor = "#ff0000"
+        var ell = base("e", x: 200, y: 20, w: 100, h: 60); ell.strokeColor = "#1971c2"
+        let text = base("t", x: 40, y: 150)
+        let scene = Scene(elements: [
+            ExcalidrawElement(base: rect, kind: .rectangle),
+            ExcalidrawElement(base: ell, kind: .ellipse),
+            ExcalidrawElement(base: text, kind: .text(TextProperties(text: "Hello", originalText: "Hello"))),
+        ])
+
+        let (w, h) = (400, 240)
+        let ctx = context(width: w, height: h)
+        SceneRenderer().render(scene, in: ctx, viewport: Viewport(), size: CGSize(width: w, height: h))
+
+        let (px, total) = rgb(ctx, width: w, height: h)
+        var inked = 0
+        for i in stride(from: 0, to: total, by: 4) where !(px[i] == 255 && px[i + 1] == 255 && px[i + 2] == 255) {
+            inked += 1
+        }
+        XCTAssertGreaterThan(inked, 200, "expected the scene to ink many pixels")
+    }
+
+    func testSolidFillProducesFillColoredPixels() {
+        var rect = base("r", x: 10, y: 10, w: 100, h: 80)
+        rect.backgroundColor = "#ff0000"
+        rect.fillStyle = .solid
+        let scene = Scene(elements: [ExcalidrawElement(base: rect, kind: .rectangle)])
+
+        let (w, h) = (140, 120)
+        let ctx = context(width: w, height: h)
+        SceneRenderer().render(scene, in: ctx, viewport: Viewport(), size: CGSize(width: w, height: h))
+
+        let (px, total) = rgb(ctx, width: w, height: h)
+        var redPixels = 0
+        for i in stride(from: 0, to: total, by: 4) where px[i] > 200 && px[i + 1] < 100 && px[i + 2] < 100 {
+            redPixels += 1
+        }
+        XCTAssertGreaterThan(redPixels, 100, "solid fill should produce red interior pixels")
+    }
+
+    func testBackgroundColorFills() {
+        var s = Scene()
+        s.appState = AppState(raw: ["viewBackgroundColor": .string("#00ff00")])
+        let (w, h) = (20, 20)
+        let ctx = context(width: w, height: h)
+        SceneRenderer().render(s, in: ctx, viewport: Viewport(), size: CGSize(width: w, height: h))
+        let (px, _) = rgb(ctx, width: w, height: h)
+        XCTAssertGreaterThan(px[1], 200) // green channel of first pixel
+        XCTAssertLessThan(px[0], 100)
+    }
+
+    func testGridRendersWithoutElements() {
+        var s = Scene()
+        s.appState = AppState(raw: ["gridModeEnabled": .bool(true)])
+        let (w, h) = (100, 100)
+        let ctx = context(width: w, height: h)
+        SceneRenderer().render(s, in: ctx, viewport: Viewport(), size: CGSize(width: w, height: h))
+        let (px, total) = rgb(ctx, width: w, height: h)
+        var nonWhite = 0
+        for i in stride(from: 0, to: total, by: 4) where px[i] < 255 { nonWhite += 1 }
+        XCTAssertGreaterThan(nonWhite, 0, "grid lines should be drawn")
+    }
+
+    private func inkedCount(_ ctx: CGContext, width: Int, height: Int) -> Int {
+        let (px, total) = rgb(ctx, width: width, height: height)
+        var inked = 0
+        for i in stride(from: 0, to: total, by: 4) where !(px[i] == 255 && px[i + 1] == 255 && px[i + 2] == 255) {
+            inked += 1
+        }
+        return inked
+    }
+
+    func testRendersFreedrawAndRotatedDashedShapes() {
+        var free = base("f", x: 20, y: 20, w: 60, h: 40); free.strokeColor = "#1971c2"
+        let freeProps = FreedrawProperties(points: [Point(0, 0), Point(30, 20), Point(60, 0), Point(40, 40)])
+        var dashed = base("d", x: 100, y: 20, w: 80, h: 60)
+        dashed.strokeStyle = .dashed
+        dashed.angle = .pi / 6 // exercises the rotation branch
+        let scene = Scene(elements: [
+            ExcalidrawElement(base: free, kind: .freedraw(freeProps)),
+            ExcalidrawElement(base: dashed, kind: .rectangle),
+        ])
+        let (w, h) = (220, 120)
+        let ctx = context(width: w, height: h)
+        SceneRenderer().render(scene, in: ctx, viewport: Viewport(), size: CGSize(width: w, height: h))
+        XCTAssertGreaterThan(inkedCount(ctx, width: w, height: h), 50)
+    }
+
+    func testRendersImageElement() {
+        let payload = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        let file = BinaryFileData(
+            mimeType: "image/png", id: "img", dataURL: "data:image/png;base64,\(payload)", created: 0
+        )
+        var img = base("i", x: 10, y: 10, w: 50, h: 50)
+        img.backgroundColor = "transparent"
+        let scene = Scene(
+            elements: [ExcalidrawElement(base: img, kind: .image(ImageProperties(fileId: "img", status: .saved)))],
+            files: ["img": file]
+        )
+        let (w, h) = (80, 80)
+        let ctx = context(width: w, height: h)
+        // Exercises the image-draw branch; the decoder must produce an image and
+        // rendering must complete without crashing.
+        XCTAssertNotNil(ImageDecoder().image(fileId: "img", dataURL: file.dataURL))
+        SceneRenderer().render(scene, in: ctx, viewport: Viewport(), size: CGSize(width: w, height: h))
+    }
+
+    func testColorParser() {
+        let red = ColorParser.cgColor("#ff0000")!
+        XCTAssertEqual(red.components?[0], 1)
+        XCTAssertEqual(red.components?[1], 0)
+        let short = ColorParser.cgColor("#fff")!
+        XCTAssertEqual(short.components?[0], 1)
+        let alpha = ColorParser.cgColor("#ff000080")!
+        XCTAssertEqual(alpha.alpha, CGFloat(128) / 255, accuracy: 0.01)
+        XCTAssertEqual(ColorParser.cgColor("transparent")?.alpha, 0)
+        XCTAssertTrue(ColorParser.isTransparent("#ff000000"))
+    }
+
+    func testImageDecoder() {
+        let payload = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        let dataURL = "data:image/png;base64,\(payload)"
+        let decoder = ImageDecoder()
+        let image = decoder.image(fileId: "f1", dataURL: dataURL)
+        XCTAssertNotNil(image)
+        XCTAssertNotNil(decoder.image(fileId: "f1", dataURL: dataURL)) // cached path
+        XCTAssertNil(ImageDecoder.decode(dataURL: "not-a-data-url"))
+    }
+}

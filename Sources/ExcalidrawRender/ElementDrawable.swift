@@ -18,6 +18,8 @@ public enum ElementDrawable {
         let w = element.base.width
         let h = element.base.height
 
+        let rounded = element.base.roundness != nil
+
         switch element.kind {
         case .rectangle, .embeddable, .iframe:
             return generator.rectangle(x: 0, y: 0, width: w, height: h, options: o)
@@ -25,15 +27,23 @@ public enum ElementDrawable {
             // Diamond vertices at the midpoints of each bounding-box edge.
             let pts = [Point(w / 2, 0), Point(w, h / 2), Point(w / 2, h), Point(0, h / 2)]
             return generator.polygon(pts, options: o)
+        case .ellipse:
+            return generator.ellipse(x: w / 2, y: h / 2, width: w, height: h, options: o).drawable
         case let .line(props):
-            return props.polygon || isLoop(props.points)
-                ? generator.polygon(props.points, options: o)
-                : generator.linearPath(props.points, options: o)
+            return linearDrawable(props.points, closed: props.polygon || isLoop(props.points), rounded: rounded, o)
         case let .arrow(props):
-            return generator.linearPath(props.points, options: o)
+            return linearDrawable(props.points, closed: false, rounded: rounded, o)
         default:
-            return nil // ellipse / freedraw / text / image / frame: later increments
+            return nil // freedraw / text / image / frame: handled directly by the renderer / later increments
         }
+    }
+
+    private static func linearDrawable(_ points: [Point], closed: Bool, rounded: Bool, _ o: RoughOptions) -> Drawable? {
+        guard points.count >= 2 else { return nil }
+        if rounded, points.count > 2 {
+            return generator.curve(points, options: o)
+        }
+        return closed ? generator.polygon(points, options: o) : generator.linearPath(points, options: o)
     }
 
     private static func isLoop(_ points: [Point]) -> Bool {

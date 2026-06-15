@@ -57,9 +57,15 @@ final class RenderIntegrationTests: XCTestCase {
         XCTAssertEqual(ElementDrawable.drawable(for: element(.line(closedLine)))?.shape, "polygon")
     }
 
-    func testUnsupportedKindsReturnNil() {
-        XCTAssertNil(ElementDrawable.drawable(for: element(.ellipse)))
+    func testEllipseDrawableIsGenerated() {
+        XCTAssertEqual(ElementDrawable.drawable(for: element(.ellipse))?.shape, "ellipse")
+    }
+
+    func testRendererHandledKindsReturnNilDrawable() {
+        // Text, image, freedraw and frame are drawn directly by the renderer.
         XCTAssertNil(ElementDrawable.drawable(for: element(.text(TextProperties()))))
+        XCTAssertNil(ElementDrawable.drawable(for: element(.freedraw(FreedrawProperties()))))
+        XCTAssertNil(ElementDrawable.drawable(for: element(.image(ImageProperties()))))
     }
 
     func testArrowDrawableIsLinearPath() {
@@ -77,8 +83,8 @@ final class RenderIntegrationTests: XCTestCase {
         let loopPts = [Point(0, 0), Point(50, 0), Point(50, 50), Point(0, 0)]
         let line = RoughOptionsBuilder.options(for: element(.line(LinearProperties(points: loopPts)), bg: "#b2f2bb"))
         XCTAssertEqual(line.fill, "#b2f2bb")
-        let free = RoughOptionsBuilder.options(for: element(.freedraw(FreedrawProperties(points: loopPts)), bg: "#b2f2bb"))
-        XCTAssertEqual(free.fill, "#b2f2bb")
+        let freeEl = element(.freedraw(FreedrawProperties(points: loopPts)), bg: "#b2f2bb")
+        XCTAssertEqual(RoughOptionsBuilder.options(for: freeEl).fill, "#b2f2bb")
     }
 
     func testShapeCacheRemoveAll() {

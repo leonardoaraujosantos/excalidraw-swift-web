@@ -4,9 +4,11 @@ import XCTest
 /// end-to-end drawing flows (draw → move → resize → undo → export) arrive in
 /// Phase 3 once the interaction loop exists.
 final class SmokeUITests: XCTestCase {
-    func testAppLaunches() {
+    func testAppLaunchesAndRendersCanvas() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.staticTexts["Excalidraw-Swift"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.wait(for: .runningForeground, timeout: 10), true)
+        // The scene canvas should be present (it renders the bundled sample).
+        XCTAssertTrue(app.otherElements["excalidraw-canvas"].waitForExistence(timeout: 10))
     }
 }
