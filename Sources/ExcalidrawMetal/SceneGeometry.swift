@@ -32,17 +32,24 @@ public struct SceneGeometry {
     private let theme: Theme
 
     public init(
-        scene: Scene, theme: Theme, skipping: Set<String> = [], shapeCache: ShapeCache = ShapeCache()
+        scene: Scene, theme: Theme, skipping: Set<String> = [],
+        shapeCache: ShapeCache = ShapeCache(), geometryCache: GeometryCache? = nil
     ) {
         self.theme = theme
-        build(scene: scene, skipping: skipping, shapeCache: shapeCache)
+        build(scene: scene, skipping: skipping, shapeCache: shapeCache, geometryCache: geometryCache)
     }
 
-    private mutating func build(scene: Scene, skipping: Set<String>, shapeCache: ShapeCache) {
+    private mutating func build(
+        scene: Scene, skipping: Set<String>, shapeCache: ShapeCache, geometryCache: GeometryCache?
+    ) {
         for element in scene.visibleElements
             where !skipping.contains(element.id) && isTessellatable(element) {
             guard let drawable = shapeCache.drawable(for: element) else { continue }
-            append(element: element, drawable: drawable)
+            let verts = geometryCache?.vertices(for: element, theme: theme) {
+                Self.elementVertices(element: element, drawable: drawable, theme: theme)
+            } ?? Self.elementVertices(element: element, drawable: drawable, theme: theme)
+            vertices.append(contentsOf: verts)
+            handledIDs.insert(element.id)
         }
     }
 
@@ -57,49 +64,60 @@ public struct SceneGeometry {
         }
     }
 
-    private mutating func append(element: ExcalidrawElement, drawable: Drawable) {
+    /// Tessellate a single element into interleaved `[x, y, r, g, b, a]` floats
+    /// in scene coordinates. Static and self-contained so a `GeometryCache` can
+    /// memoize the result per element.
+    static func elementVertices(element: ExcalidrawElement, drawable: Drawable, theme: Theme) -> [Float] {
         let base = element.base
         let opacity = Float(base.opacity / 100)
-        let transform = Self.elementTransform(base)
+        let transform = elementTransform(base)
+        let strokeRGBA = rgba(base.strokeColor, opacity: opacity, theme: theme)
+        let fillRGBA = drawable.options.fill.flatMap { rgba($0, opacity: opacity, theme: theme) }
 
-        let strokeRGBA = rgba(base.strokeColor, opacity: opacity)
-        let fillRGBA = drawable.options.fill.flatMap { rgba($0, opacity: opacity) }
-
+        var out: [Float] = []
         for set in drawable.sets {
             let subpaths = Tessellator.flatten(set.ops)
             switch set.type {
             case .fillPath:
                 guard let fillRGBA else { continue }
                 for sub in subpaths {
-                    emit(Tessellator.fillTriangles(sub), color: fillRGBA, transform: transform)
+                    emit(Tessellator.fillTriangles(sub), color: fillRGBA, transform: transform, into: &out)
                 }
             case .fillSketch:
                 guard let fillRGBA else { continue }
                 let weight = drawable.options.fillWeight > 0 ? drawable.options.fillWeight : base.strokeWidth / 2
                 for sub in subpaths {
-                    emit(Tessellator.strokeTriangles(sub, halfWidth: weight / 2), color: fillRGBA, transform: transform)
+                    emit(
+                        Tessellator.strokeTriangles(sub, halfWidth: weight / 2),
+                        color: fillRGBA,
+                        transform: transform,
+                        into: &out
+                    )
                 }
             case .path:
                 guard let strokeRGBA else { continue }
                 for sub in subpaths {
                     emit(
                         Tessellator.strokeTriangles(sub, halfWidth: base.strokeWidth / 2),
-                        color: strokeRGBA, transform: transform
+                        color: strokeRGBA,
+                        transform: transform,
+                        into: &out
                     )
                 }
             }
         }
 
         if case let .arrow(props) = element.kind, let strokeRGBA {
-            appendArrowheads(props, base: base, color: strokeRGBA, transform: transform)
+            appendArrowheads(props, base: base, color: strokeRGBA, transform: transform, into: &out)
         }
-        handledIDs.insert(element.id)
+        return out
     }
 
     // MARK: - Arrowheads (mirrors SceneRenderer.drawArrowhead)
 
-    private mutating func appendArrowheads(
-        _ props: ArrowProperties, base: BaseProperties, color: SIMDColor, transform: (Point) -> Point
+    private static func appendArrowheads(
+        _ props: ArrowProperties, base: BaseProperties, color: SIMDColor,
+        transform: (Point) -> Point, into out: inout [Float]
     ) {
         let pts = props.points
         guard pts.count >= 2 else { return }
@@ -110,17 +128,26 @@ public struct SceneGeometry {
                 head: head,
                 base: base,
                 color: color,
-                transform: transform
+                transform: transform,
+                into: &out
             )
         }
         if let head = props.startArrowhead {
-            appendArrowhead(at: pts[0], from: pts[1], head: head, base: base, color: color, transform: transform)
+            appendArrowhead(
+                at: pts[0],
+                from: pts[1],
+                head: head,
+                base: base,
+                color: color,
+                transform: transform,
+                into: &out
+            )
         }
     }
 
-    private mutating func appendArrowhead(
+    private static func appendArrowhead(
         at tip: Point, from prev: Point, head: Arrowhead, base: BaseProperties,
-        color: SIMDColor, transform: (Point) -> Point
+        color: SIMDColor, transform: (Point) -> Point, into out: inout [Float]
     ) {
         let dir = Vector(from: tip, origin: prev).normalized()
         guard dir.magnitude > 0 else { return }
@@ -137,23 +164,33 @@ public struct SceneGeometry {
         let p2 = Point(tip.x + b2.u, tip.y + b2.v)
 
         if head == .triangle || head == .diamond {
-            emit([p1, tip, p2], color: color, transform: transform)
+            emit([p1, tip, p2], color: color, transform: transform, into: &out)
         } else {
             emit(
                 Tessellator.strokeTriangles([p1, tip, p2], halfWidth: base.strokeWidth / 2),
                 color: color,
-                transform: transform
+                transform: transform,
+                into: &out
             )
         }
     }
 
     // MARK: - Emit / transform / color
 
-    private mutating func emit(_ triangles: [Point], color: SIMDColor, transform: (Point) -> Point) {
-        vertices.reserveCapacity(vertices.count + triangles.count * 6)
+    private static func emit(
+        _ triangles: [Point], color: SIMDColor, transform: (Point) -> Point, into out: inout [Float]
+    ) {
+        // Do NOT call reserveCapacity per emit: a tight per-call reservation
+        // defeats Array's geometric growth and turns the many appends across a
+        // scene into O(n²) reallocation. Plain append keeps amortized O(1).
         for p in triangles {
             let t = transform(p)
-            vertices.append(contentsOf: [Float(t.x), Float(t.y), color.r, color.g, color.b, color.a])
+            out.append(Float(t.x))
+            out.append(Float(t.y))
+            out.append(color.r)
+            out.append(color.g)
+            out.append(color.b)
+            out.append(color.a)
         }
     }
 
@@ -176,7 +213,7 @@ public struct SceneGeometry {
 
     struct SIMDColor { var r, g, b, a: Float }
 
-    private func rgba(_ string: String, opacity: Float) -> SIMDColor? {
+    private static func rgba(_ string: String, opacity: Float, theme: Theme) -> SIMDColor? {
         guard !ColorParser.isTransparent(string), let base = ColorParser.cgColor(string) else { return nil }
         let themed = ThemeFilter.apply(base, theme: theme)
         guard let c = themed.components, c.count >= 3 else { return nil }

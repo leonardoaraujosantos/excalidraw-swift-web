@@ -106,6 +106,27 @@ final class MetalSceneRendererTests: XCTestCase {
         XCTAssertGreaterThan(r, 230); XCTAssertGreaterThan(g, 230); XCTAssertGreaterThan(b, 230)
     }
 
+    func testRenderTimedReportsPhasesAndCacheSpeedsUpSecondFrame() throws {
+        guard let metal = MetalSceneRenderer() else {
+            throw XCTSkip("No Metal device on this host")
+        }
+        let scene = shapesScene()
+        let viewport = Viewport()
+        func ctx() -> CGContext {
+            CGContext(
+                data: nil, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8,
+                bytesPerRow: Int(size.width) * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )!
+        }
+        // First frame fills the geometry cache; second frame must reuse it, so
+        // its geometry phase is no slower (caches live on the renderer).
+        let cold = metal.renderTimed(scene, in: ctx(), viewport: viewport, size: size)
+        let warm = metal.renderTimed(scene, in: ctx(), viewport: viewport, size: size)
+        XCTAssertGreaterThan(cold.gpuMs, 0)
+        XCTAssertLessThanOrEqual(warm.geometryMs, cold.geometryMs + 1.0)
+    }
+
     // MARK: Helpers
 
     private func render(_ scene: Scene, viewport: Viewport, with renderer: SceneRendering) -> [UInt8] {

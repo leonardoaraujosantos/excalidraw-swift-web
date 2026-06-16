@@ -18,6 +18,10 @@ public final class MetalSceneRenderer: SceneRendering {
     private let gpu: MetalRenderContext
     private let cgRenderer: SceneRenderer
     private let shapeCache: ShapeCache
+    /// Persists tessellated vertices across frames so steady-state pan/zoom only
+    /// re-tessellates elements that actually changed (the dominant per-frame
+    /// cost). Lives on the renderer, which outlives individual frames.
+    private let geometryCache = GeometryCache()
 
     /// Create a Metal renderer, or `nil` when Metal is unavailable on this host
     /// (caller falls back to `SceneRenderer`). Shares one `ShapeCache` between
@@ -38,7 +42,10 @@ public final class MetalSceneRenderer: SceneRendering {
         _ scene: Scene, in ctx: CGContext, viewport: Viewport, size: CGSize,
         theme: Theme, clip: BoundingBox?, skipping: Set<String>, fillBackground: Bool
     ) {
-        let geometry = SceneGeometry(scene: scene, theme: theme, skipping: skipping, shapeCache: shapeCache)
+        let geometry = SceneGeometry(
+            scene: scene, theme: theme, skipping: skipping,
+            shapeCache: shapeCache, geometryCache: geometryCache
+        )
 
         // 1. Background + grid (skip every element so only the backdrop paints).
         if fillBackground {
@@ -63,6 +70,59 @@ public final class MetalSceneRenderer: SceneRendering {
             scene, in: ctx, viewport: viewport, size: size, theme: theme,
             clip: clip, skipping: skipping.union(geometry.handledIDs), fillBackground: false
         )
+    }
+
+    /// Per-phase wall-clock breakdown of one frame, for the on-device renderer
+    /// benchmark. Renders the same three passes as `render` while timing each.
+    public struct PhaseTimings: Sendable {
+        public var geometryMs = 0.0
+        public var backgroundMs = 0.0
+        public var gpuMs = 0.0
+        public var overlayMs = 0.0
+    }
+
+    public func renderTimed(
+        _ scene: Scene, in ctx: CGContext, viewport: Viewport, size: CGSize, theme: Theme = .light
+    ) -> PhaseTimings {
+        func ms(_ body: () -> Void) -> Double {
+            let start = DispatchTime.now().uptimeNanoseconds
+            body()
+            return Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
+        }
+        var timings = PhaseTimings()
+        var geometry: SceneGeometry?
+        timings.geometryMs = ms {
+            geometry = SceneGeometry(
+                scene: scene, theme: theme, shapeCache: shapeCache, geometryCache: geometryCache
+            )
+        }
+        guard let geometry else { return timings }
+
+        let allIDs = Set(scene.visibleElements.map(\.id))
+        timings.backgroundMs = ms {
+            cgRenderer.render(
+                scene, in: ctx, viewport: viewport, size: size, theme: theme,
+                clip: nil, skipping: allIDs, fillBackground: true
+            )
+        }
+        var image: CGImage?
+        timings.gpuMs = ms {
+            if !geometry.isEmpty { image = gpuImage(geometry, viewport: viewport, size: size, ctx: ctx) }
+        }
+        if let image {
+            ctx.saveGState()
+            ctx.translateBy(x: 0, y: size.height)
+            ctx.scaleBy(x: 1, y: -1)
+            ctx.draw(image, in: CGRect(origin: .zero, size: size))
+            ctx.restoreGState()
+        }
+        timings.overlayMs = ms {
+            cgRenderer.render(
+                scene, in: ctx, viewport: viewport, size: size, theme: theme,
+                clip: nil, skipping: geometry.handledIDs, fillBackground: false
+            )
+        }
+        return timings
     }
 
     private func gpuImage(

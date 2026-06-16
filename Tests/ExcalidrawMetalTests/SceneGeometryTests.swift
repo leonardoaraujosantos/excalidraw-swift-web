@@ -99,4 +99,54 @@ final class SceneGeometryTests: XCTestCase {
         let g = geometry([ExcalidrawElement(base: base("l", 0, 0, 100, 50), kind: .line(line))])
         XCTAssertGreaterThan(g.triangleCount, 0)
     }
+
+    func testGeometryCacheReusesVerticesAndInvalidatesOnChange() {
+        var rect = base("r", 10, 10, 100, 60); rect.backgroundColor = "#a5d8ff"; rect.fillStyle = .crossHatch
+        let scene = Scene(elements: [ExcalidrawElement(base: rect, kind: .rectangle)])
+        let cache = GeometryCache()
+
+        let first = SceneGeometry(scene: scene, theme: .light, geometryCache: cache)
+        XCTAssertEqual(cache.count, 1)
+        let cached = SceneGeometry(scene: scene, theme: .light, geometryCache: cache)
+        XCTAssertEqual(first.vertices, cached.vertices, "unchanged element must hit the cache identically")
+
+        // A theme change must miss the cache and re-tessellate with new colors.
+        let dark = SceneGeometry(scene: scene, theme: .dark, geometryCache: cache)
+        XCTAssertEqual(first.vertices.count, dark.vertices.count)
+        XCTAssertNotEqual(first.vertices, dark.vertices)
+
+        // Moving the element invalidates its entry (geometry differs).
+        var moved = rect; moved.x += 50
+        let movedScene = Scene(elements: [ExcalidrawElement(base: moved, kind: .rectangle)])
+        let movedGeo = SceneGeometry(scene: movedScene, theme: .light, geometryCache: cache)
+        XCTAssertNotEqual(first.vertices, movedGeo.vertices)
+    }
+
+    /// Regression: emitting vertices must stay amortized O(1) per triangle. A
+    /// tight `reserveCapacity` per emit previously made the build O(n²) — ~8 s
+    /// for 200 shapes on an iPad. Build a large scene off a warm `ShapeCache`
+    /// (so we time tessellation, not drawable generation) and assert it stays
+    /// well under a generous bound that quadratic growth could never meet.
+    func testLargeSceneGeometryBuildIsNotQuadratic() {
+        let count = 800
+        var elements: [ExcalidrawElement] = []
+        let perRow = 30
+        for i in 0 ..< count {
+            var b = base("e\(i)", Double(i % perRow) * 90, Double(i / perRow) * 90, 70, 60)
+            b.backgroundColor = "#a5d8ff"; b.fillStyle = .crossHatch; b.seed = i + 1
+            elements.append(ExcalidrawElement(base: b, kind: i % 2 == 0 ? .rectangle : .ellipse))
+        }
+        let scene = Scene(elements: elements)
+        let cache = ShapeCache()
+        _ = SceneGeometry(scene: scene, theme: .light, shapeCache: cache) // warm drawables
+
+        let start = Date()
+        let g = SceneGeometry(scene: scene, theme: .light, shapeCache: cache)
+        let elapsed = Date().timeIntervalSince(start)
+
+        XCTAssertGreaterThan(g.triangleCount, 0)
+        // Linear build is ~1 s for 800 shapes; the O(n²) regression was ~17 s.
+        // A 6 s bound catches the regression with margin while tolerating slow CI.
+        XCTAssertLessThan(elapsed, 6.0, "geometry build for \(count) shapes took \(elapsed)s — O(n²) regression")
+    }
 }

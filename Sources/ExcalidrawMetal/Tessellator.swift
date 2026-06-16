@@ -19,7 +19,7 @@ public enum Tessellator {
 
     /// Split `ops` into polylines, subdividing cubic Béziers. A `.move` starts a
     /// new subpath. `curveSegments` controls Bézier smoothness.
-    public static func flatten(_ ops: [PathOp], curveSegments: Int = 16) -> [[Point]] {
+    public static func flatten(_ ops: [PathOp], curveSegments: Int = 10) -> [[Point]] {
         var subpaths: [[Point]] = []
         var current: [Point] = []
         var cursor = Point(0, 0)
@@ -68,11 +68,14 @@ public enum Tessellator {
 
     // MARK: - Strokes
 
-    /// Tessellate a polyline into triangles of width `2 * halfWidth`, with round
-    /// joins at interior vertices and round caps at the ends (matching the
-    /// round line cap/join the Core Graphics renderer uses for rough strokes).
+    /// Tessellate a polyline into triangles of width `2 * halfWidth`. Round caps
+    /// close the open ends and round joins fill the gap at corners — but only at
+    /// vertices that actually *turn* (beyond `joinAngleThreshold`). A flattened
+    /// curve is mostly near-collinear, so skipping discs at those vertices cuts
+    /// the triangle count by an order of magnitude with no visible difference
+    /// (the segment quads already overlap there).
     public static func strokeTriangles(
-        _ polyline: [Point], halfWidth: Double, closed: Bool = false, capSegments: Int = 8
+        _ polyline: [Point], halfWidth: Double, closed: Bool = false, capSegments: Int = 6
     ) -> Triangles {
         guard polyline.count >= 2, halfWidth > 0 else { return [] }
         var points = polyline
@@ -81,7 +84,7 @@ public enum Tessellator {
         }
 
         var tris: Triangles = []
-        tris.reserveCapacity(points.count * 6)
+        tris.reserveCapacity(points.count * 9)
 
         for i in 0 ..< (points.count - 1) {
             let a = points[i], b = points[i + 1]
@@ -96,14 +99,32 @@ public enum Tessellator {
             tris.append(contentsOf: [a0, a1, b0, b0, a1, b1])
         }
 
-        // Round joins/caps: a disc at every vertex closes the gaps a miter would
-        // leave and rounds the open ends. Cheap and gap-free for hand-drawn
-        // strokes where exact join geometry is imperceptible.
-        for p in points {
-            appendDisc(center: p, radius: halfWidth, segments: capSegments, into: &tris)
+        // Round caps at the two open ends.
+        if closed {
+            appendDisc(center: points[0], radius: halfWidth, segments: capSegments, into: &tris)
+        } else {
+            appendDisc(center: points[0], radius: halfWidth, segments: capSegments, into: &tris)
+            appendDisc(center: points[points.count - 1], radius: halfWidth, segments: capSegments, into: &tris)
+        }
+        // Round joins only where the stroke turns appreciably. (For closed
+        // strokes the wrap-around vertex is already covered by the cap disc.)
+        let cosThreshold = cos(joinAngleThreshold)
+        for i in 1 ..< (points.count - 1) {
+            let prev = points[i - 1], curr = points[i], next = points[i + 1]
+            let v1x = curr.x - prev.x, v1y = curr.y - prev.y
+            let v2x = next.x - curr.x, v2y = next.y - curr.y
+            let len1 = (v1x * v1x + v1y * v1y).squareRoot(), len2 = (v2x * v2x + v2y * v2y).squareRoot()
+            guard len1 > 1e-9, len2 > 1e-9 else { continue }
+            let cosTurn = (v1x * v2x + v1y * v2y) / (len1 * len2)
+            if cosTurn < cosThreshold {
+                appendDisc(center: curr, radius: halfWidth, segments: capSegments, into: &tris)
+            }
         }
         return tris
     }
+
+    /// Minimum turn (radians) at an interior vertex before a round join is added.
+    private static let joinAngleThreshold = 18.0 * Double.pi / 180
 
     private static func appendDisc(center: Point, radius: Double, segments: Int, into tris: inout Triangles) {
         guard segments >= 3, radius > 0 else { return }
