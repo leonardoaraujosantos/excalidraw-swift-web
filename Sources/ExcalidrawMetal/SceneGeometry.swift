@@ -77,11 +77,11 @@ public struct SceneGeometry {
         }
     }
 
-    /// GPU-eligible elements: rough shapes and freedraw with a solid stroke and
-    /// no frame clipping. Everything else (text/image/frame/embeddable, dashed
-    /// or dotted strokes, framed children) falls through to Core Graphics.
+    /// GPU-eligible elements: rough shapes and freedraw (solid, dashed or dotted)
+    /// with no frame clipping. Everything else (text/image/frame/embeddable,
+    /// framed children) falls through to Core Graphics.
     private func isTessellatable(_ element: ExcalidrawElement) -> Bool {
-        guard element.base.frameId == nil, element.base.strokeStyle == .solid else { return false }
+        guard element.base.frameId == nil else { return false }
         switch element.kind {
         case .rectangle, .diamond, .ellipse, .line, .arrow, .freedraw: return true
         default: return false
@@ -130,7 +130,11 @@ public struct SceneGeometry {
                 }
             case .path:
                 guard let strokeRGBA else { continue }
-                for sub in subpaths {
+                // Dashed / dotted: split the outline into the pattern's "on" runs
+                // and stroke each as a solid piece (matches CG `setLineDash`).
+                let dash = drawable.options.strokeLineDash
+                let runs = dash.map { d in subpaths.flatMap { Tessellator.dashSplit($0, pattern: d) } } ?? subpaths
+                for sub in runs {
                     emit(
                         Tessellator.strokeTriangles(sub, halfWidth: base.strokeWidth / 2),
                         color: strokeRGBA,
