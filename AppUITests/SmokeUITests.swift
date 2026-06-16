@@ -158,4 +158,26 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
         XCTAssertTrue(canvas.exists)
     }
+
+    func testRendererBenchmarkScreenShowsResults() {
+        // Open the on-screen renderer benchmark, run it, and confirm a results
+        // row appears (so the numbers are visible on the device, not just the
+        // Xcode console).
+        app.buttons["benchmark"].tap()
+        let run = app.buttons["benchmark-run"]
+        XCTAssertTrue(run.waitForExistence(timeout: 5))
+        run.tap()
+        // The run renders several synthetic scenes with both backends; give it
+        // time to populate the first row.
+        let firstRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'benchmark-row-'")
+        ).firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 30), "benchmark produced no result rows")
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "renderer-benchmark"
+        shot.lifetime = .keepAlways
+        add(shot)
+        app.buttons["benchmark-done"].tap()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+    }
 }

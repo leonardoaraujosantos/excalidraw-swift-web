@@ -46,6 +46,7 @@ public final class EditorModel: ObservableObject {
     @Published public var theme: Theme = .light
     @Published public var zenMode = false
     @Published public var showCommandPalette = false
+    @Published public var showBenchmark = false
     @Published public var snapEnabled = false {
         didSet { controller.snapEnabled = snapEnabled }
     }
