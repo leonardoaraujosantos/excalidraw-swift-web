@@ -130,6 +130,50 @@ final class EditorModelTests: XCTestCase {
         XCTAssertTrue(m.exportSVG().contains("<svg"))
     }
 
+    func testZoomInOutReset() {
+        let m = EditorModel()
+        m.canvasSize = CGSize(width: 1000, height: 800)
+        m.zoomIn()
+        XCTAssertGreaterThan(m.viewport.zoom, 1)
+        m.resetZoom()
+        XCTAssertEqual(m.viewport.zoom, 1, accuracy: 1e-9)
+        m.zoomOut()
+        XCTAssertLessThan(m.viewport.zoom, 1)
+    }
+
+    func testZoomToFit() {
+        let m = EditorModel()
+        m.canvasSize = CGSize(width: 400, height: 400)
+        m.select(tool: .rectangle)
+        draw(m, from: CGPoint(x: 0, y: 0), to: CGPoint(x: 800, y: 800))
+        m.zoomToFit()
+        // An 800-wide shape fits into a 400 canvas → zoom < 1.
+        XCTAssertLessThan(m.viewport.zoom, 1)
+    }
+
+    func testCopyCutPasteRoundTrip() {
+        let m = EditorModel()
+        m.select(tool: .rectangle)
+        draw(m, from: CGPoint(x: 0, y: 0), to: CGPoint(x: 40, y: 40))
+        m.controller.selectAll()
+        m.copy()
+        m.paste()
+        XCTAssertEqual(m.controller.scene.visibleElements.count, 2)
+    }
+
+    func testCommandDispatch() {
+        let m = EditorModel()
+        m.run(.selectTool(.ellipse))
+        XCTAssertEqual(m.activeTool, .ellipse)
+        m.run(.selectTool(.rectangle))
+        draw(m, from: CGPoint(x: 0, y: 0), to: CGPoint(x: 30, y: 30))
+        m.run(.selectAll)
+        m.run(.duplicate)
+        XCTAssertEqual(m.controller.scene.visibleElements.count, 2)
+        m.run(.undo)
+        XCTAssertEqual(m.controller.scene.visibleElements.count, 1)
+    }
+
     func testExport() {
         let m = EditorModel()
         XCTAssertNil(m.exportPNG()) // empty scene

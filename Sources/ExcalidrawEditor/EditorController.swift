@@ -58,6 +58,12 @@ public final class EditorController {
         ElementGeometry.commonBounds(selectedElements)
     }
 
+    /// The selection bounds, or all visible content if nothing is selected
+    /// (used by zoom-to-fit).
+    public var selectionOrContentBounds: BoundingBox? {
+        selectionBounds ?? ElementGeometry.commonBounds(scene.visibleElements)
+    }
+
     /// Handle positions for the current selection, shown by the overlay when the
     /// selection tool is active.
     public func transformHandles() -> [TransformHandle: Point] {

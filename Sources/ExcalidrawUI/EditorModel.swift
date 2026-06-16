@@ -27,6 +27,11 @@ public final class EditorModel: ObservableObject {
     @Published public var editingText: String = ""
     @Published public var editingTextOrigin: CGPoint = .zero
 
+    /// Last known canvas size in points, for zoom-to-fit and image centring.
+    public var canvasSize: CGSize = CGSize(width: 1024, height: 768)
+    /// Local clipboard fallback when no system pasteboard is wired.
+    var clipboard: Data?
+
     public init(scene: ExcalidrawModel.Scene = ExcalidrawModel.Scene(), viewport: Viewport = Viewport()) {
         controller = EditorController(scene: scene)
         controller.zoom = viewport.zoom
@@ -129,6 +134,90 @@ public final class EditorModel: ObservableObject {
     public func undo() { controller.undo(); revision += 1 }
     public func redo() { controller.redo(); revision += 1 }
     public func deleteSelected() { controller.deleteSelected(); revision += 1 }
+
+    // MARK: Clipboard
+
+    public func copy() {
+        guard let data = controller.copyData() else { return }
+        clipboard = data
+        Pasteboard.write(data)
+    }
+
+    public func cut() {
+        copy()
+        controller.deleteSelected()
+        revision += 1
+    }
+
+    public func paste() {
+        guard let data = Pasteboard.read() ?? clipboard else { return }
+        controller.paste(data)
+        revision += 1
+    }
+
+    // MARK: Zoom
+
+    public func zoomIn() { setZoom(viewport.zoom * 1.2, anchor: canvasCenter) }
+    public func zoomOut() { setZoom(viewport.zoom / 1.2, anchor: canvasCenter) }
+    public func resetZoom() { setZoom(1, anchor: canvasCenter) }
+
+    /// Fit all content into the canvas with margin.
+    public func zoomToFit() {
+        guard let bounds = controller.selectionOrContentBounds else { return }
+        let margin = 0.9
+        let zoomX = canvasSize.width / max(bounds.width, 1)
+        let zoomY = canvasSize.height / max(bounds.height, 1)
+        let range = ExcalidrawRender.zoomRange
+        let zoom = min(max(min(zoomX, zoomY) * margin, range.lowerBound), range.upperBound)
+        var v = viewport
+        v.zoom = zoom
+        // Centre the content.
+        v.scrollX = canvasSize.width / (2 * zoom) - (bounds.minX + bounds.maxX) / 2
+        v.scrollY = canvasSize.height / (2 * zoom) - (bounds.minY + bounds.maxY) / 2
+        viewport = v
+        controller.zoom = zoom
+        revision += 1
+    }
+
+    private var canvasCenter: Point { Point(canvasSize.width / 2, canvasSize.height / 2) }
+
+    /// Zoom about a view-space anchor, keeping the scene point under it fixed.
+    private func setZoom(_ target: Double, anchor: Point) {
+        let range = ExcalidrawRender.zoomRange
+        let zoom = min(max(target, range.lowerBound), range.upperBound)
+        let scene = viewport.viewToScene(anchor)
+        var v = viewport
+        v.zoom = zoom
+        v.scrollX = anchor.x / zoom - scene.x
+        v.scrollY = anchor.y / zoom - scene.y
+        viewport = v
+        controller.zoom = zoom
+        revision += 1
+    }
+
+    // MARK: Command dispatch (shortcuts + palette)
+
+    public func run(_ command: EditorCommand) {
+        switch command {
+        case let .selectTool(tool): select(tool: tool)
+        case .undo: undo()
+        case .redo: redo()
+        case .delete: deleteSelected()
+        case .duplicate: duplicate()
+        case .selectAll: controller.selectAll(); revision += 1
+        case .group: group()
+        case .ungroup: controller.ungroup(); revision += 1
+        case .copy: copy()
+        case .cut: cut()
+        case .paste: paste()
+        case .bringToFront: bringToFront()
+        case .sendToBack: sendToBack()
+        case .zoomIn: zoomIn()
+        case .zoomOut: zoomOut()
+        case .zoomToFit: zoomToFit()
+        case .resetZoom: resetZoom()
+        }
+    }
 
     public func exportPNG() -> Data? {
         Exporter.pngData(controller.scene)
