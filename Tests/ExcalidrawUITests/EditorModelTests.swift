@@ -418,6 +418,27 @@ final class EditorModelTests: XCTestCase {
         XCTAssertEqual(m.controller.selectedElements.first?.base.roundness?.type, RoundnessType.adaptiveRadius)
     }
 
+    func testChartInputCommitsABarChart() {
+        let m = EditorModel()
+        m.canvasSize = CGSize(width: 800, height: 600)
+        m.showChartInput = true
+        m.chartValuesText = "10, 20, 30"
+        m.chartKind = .bar
+        m.commitChart()
+        XCTAssertFalse(m.showChartInput)
+        let bars = m.controller.scene.visibleElements.filter {
+            if case .rectangle = $0.kind { return true }; return false
+        }
+        XCTAssertEqual(bars.count, 3)
+    }
+
+    func testChartInputIgnoresGarbage() {
+        let m = EditorModel()
+        m.chartValuesText = "not numbers"
+        m.commitChart()
+        XCTAssertTrue(m.controller.scene.visibleElements.isEmpty)
+    }
+
     func testTableToolCreatesGridAndAddsRow() {
         let m = EditorModel()
         m.select(tool: .table)

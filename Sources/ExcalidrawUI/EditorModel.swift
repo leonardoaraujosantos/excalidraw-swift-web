@@ -575,6 +575,27 @@ public final class EditorModel: ObservableObject {
         }
     }
 
+    // MARK: Charts
+
+    @Published public var showChartInput = false
+    @Published public var chartValuesText = ""
+    @Published public var chartKind: ChartKind = .bar
+
+    /// Insert a chart from comma/space/newline-separated numbers in
+    /// `chartValuesText`, centred in the view, then close the input.
+    public func commitChart() {
+        let values = chartValuesText
+            .split(whereSeparator: { ", \n\t".contains($0) })
+            .compactMap { Double($0) }
+        defer { showChartInput = false; chartValuesText = "" }
+        guard !values.isEmpty else { return }
+        let center = viewport.viewToScene(Point(canvasSize.width / 2, canvasSize.height / 2))
+        controller.createChart(
+            at: Point(center.x - 120, center.y - 120), values: values, kind: chartKind
+        )
+        revision += 1
+    }
+
     // MARK: Tables
 
     /// The table group of the current single-group selection, if any.

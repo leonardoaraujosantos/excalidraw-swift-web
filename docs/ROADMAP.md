@@ -101,8 +101,10 @@ Legend: 🎯 milestone deliverable · 🧪 test focus · ⚠️ risk/hard part.
 **Goal:** multiplayer, if pursued.
 - Reuse Delta/Store sync unit + fractional indexing already in place.
 - WebSocket/Firebase transport, collaborator cursors/presence, conflict resolution, follow mode.
-- Mermaid-to-diagram, spreadsheet charts, AI/magic features as separate opt-in modules.
+- Mermaid-to-diagram and AI/magic features as separate opt-in modules.
 - 🎯 Real-time collaboration parity.
+
+> **Generators shipped (additive, no architecture change):** group-aware selection; **tables** (a grid of container-bound text cells, add row/column, edit via double-tap); **charts** (bar/line from a number series, via a values-input sheet) — both emit standard grouped elements and round-trip through `.excalidraw`. **Remaining from this group:** Mermaid → diagram (a text→elements parser; Swift flowchart-subset or JSC-embedded mermaid.js).
 
 ---
 

@@ -49,6 +49,7 @@ public struct EditorView: View {
         .onChange(of: photoItem) { _, item in loadPhoto(item) }
         .sheet(isPresented: $model.showCommandPalette) { commandPalette }
         .sheet(isPresented: $model.showLibrary) { librarySheet }
+        .sheet(isPresented: $model.showChartInput) { chartInputSheet }
         .alert("Link", isPresented: $model.showLinkPrompt) {
             TextField("https://example.com", text: $model.linkText)
                 .accessibilityIdentifier("link-field")
@@ -109,6 +110,27 @@ public struct EditorView: View {
             contentType: .json,
             defaultFilename: "library.excalidrawlib"
         ) { _ in }
+    }
+
+    private var chartInputSheet: some View {
+        NavigationStack {
+            Form {
+                Picker("Type", selection: $model.chartKind) {
+                    Text("Bar").tag(ChartKind.bar)
+                    Text("Line").tag(ChartKind.line)
+                }.pickerStyle(.segmented)
+                Section("Values") {
+                    TextField("e.g. 4, 8, 15, 16, 23, 42", text: $model.chartValuesText, axis: .vertical)
+                        .accessibilityIdentifier("chart-values")
+                }
+            }
+            .navigationTitle("Insert Chart")
+            .toolbar {
+                Button("Cancel") { model.showChartInput = false }
+                Button("Insert") { model.commitChart() }.accessibilityIdentifier("chart-insert")
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: Toolbar
@@ -396,6 +418,8 @@ public struct EditorView: View {
             Button { model.toggleSnap() } label: {
                 Image(systemName: model.snapEnabled ? "ruler.fill" : "ruler")
             }.accessibilityIdentifier("snap-toggle")
+            Button { model.showChartInput = true } label: { Image(systemName: "chart.bar") }
+                .accessibilityIdentifier("chart")
             Button { model.showLibrary = true } label: { Image(systemName: "books.vertical") }
                 .accessibilityIdentifier("library")
             Button { model.showCommandPalette = true } label: { Image(systemName: "command") }
