@@ -97,6 +97,34 @@ Legend: 🎯 milestone deliverable · 🧪 test focus · ⚠️ risk/hard part.
 - Performance pass: profiling, dirty-region overlay, optional Metal fast-path if needed.
 - 🎯 Feature parity (single-user) with upstream.
 
+## Phase 7.5 — Rendering acceleration & performance
+**Goal:** scale to large scenes and crisp high-zoom without losing the hand-drawn look — measure first, accelerate in stages, and reach for Metal only if the data demands it.
+
+> **Readiness.** The architecture is ready to accept a new renderer backend: `SceneRenderer` is isolated in `ExcalidrawRender`, the model/editor are renderer-agnostic, and `DirtyRegion` + `SceneRenderer.render(clip:)` already exist as groundwork (built in Phase 7, not yet wired into the live canvas). What's missing *before* Metal is profiling data — today's real cost is "repaint the whole scene every frame," not necessarily CoreGraphics rasterization — and a pixel baseline to catch regressions. So this phase front-loads both and treats Metal as the last, gated stage. Each stage is independently shippable; **stop at the first stage that meets the target.**
+
+### Stage A — Measure + safety net (prerequisite)
+- **Benchmark harness:** synthetic heavy scenes (≈500–5000 elements, dense hachure fills, freedraw with thousands of points). Headless timing of `SceneRenderer.render` and of interaction frames (drag/pan/zoom); an on-device ms/FPS overlay.
+- **Golden-image references** (the long-deferred item): commit pixel baselines so any renderer change is diffable within tolerance.
+- 🎯 Exit: numbers identifying the real bottleneck + a baseline to diff against. 🧪 perf benchmarks + golden images.
+
+### Stage B — Layered static/dynamic split (biggest ROI, no Metal)
+- Split the canvas into a cached **static layer** (the committed scene) and a **dynamic overlay** (the in-progress element + selection handles/snap lines). Repaint only the overlay each frame; repaint the static layer only when the committed scene changes — and then only its `DirtyRegion` sub-rect via `render(clip:)` (both already built, currently unused live).
+- Stop bumping `revision` (full repaint) on non-visual changes.
+- 🎯 Exit: smooth drag/draw/select on large scenes with the CPU renderer (expected ~5–10× fewer pixels rasterized during interaction). ⚠️ correct layer invalidation (z-order, frames, bound text).
+
+### Stage C — Retained tile cache + crisp zoom
+- Cache rasterized content (tiles / `CALayer`) and **recomposite** on pan/zoom instead of repainting; re-rasterize vectors at the new zoom so high zoom stays sharp (fixes the current `Canvas` magnification softness).
+- 🎯 Exit: pan/zoom is composite-only; zoom is crisp at every level.
+
+### Stage D — Metal backend (gated)
+- Introduce a `Renderer` protocol so the CoreGraphics `SceneRenderer` and a new `MetalSceneRenderer` are interchangeable; editor/model unchanged. CG stays the default/fallback; Metal behind a flag until proven.
+- Tessellate rough.js output: fills → triangulated polygons, strokes → expanded quads; text via a CoreText glyph atlas. GPU compositing of cached tiles + transforms → near-free pan/zoom/rotate, 120 Hz ProMotion / low-latency Pencil.
+- ⚠️ Largest single chunk and a new bug class (tessellation/AA/text correctness).
+- **Decision gate:** only build Stage D if Stage A shows CG *rasterization* (not redraw-everything, which B/C fix) is the bottleneck on realistic scenes, **or** crisp high-zoom / guaranteed 120 Hz is a hard product requirement.
+- 🎯 Exit: GPU renderer at parity with the golden images, measurably faster on the heavy benchmark, behind a CG fallback.
+
+**Sequencing:** A → B → *(measure)* → C → *(measure)* → D. The honest expectation is that A + B (and maybe C) deliver the perceived speedup; D is for proven raster-bound workloads or a 120 Hz/zoom-crispness mandate.
+
 ## Phase 8 — Collaboration & cloud (optional / future)
 **Goal:** multiplayer, if pursued.
 - Reuse Delta/Store sync unit + fractional indexing already in place.
@@ -117,9 +145,9 @@ The single source of truth for what's **not** yet implemented, kept in sync with
 - **Mermaid → diagram** — no text→diagram parser yet. Output mapping is trivial (reuses nodes + bound elbow arrows); the work is the parser (Swift flowchart-subset, or JSC-embedded `mermaid.js` for full coverage).
 - **Embeddables / iframes** — render as labelled placeholders only; no live `WKWebView` embedding, URL allow-list, or interaction (UI/security work).
 
-**Rendering & performance**
+**Rendering & performance** — planned as **Phase 7.5** (above)
 - **Retained-layer / Metal renderer** — the live SwiftUI `Canvas` is immediate-mode CoreGraphics (full-redraw + viewport `Culling` + `ShapeCache`). No static/dynamic layer split or GPU path, so high-zoom content can soften. `DirtyRegion` + `SceneRenderer.render(clip:)` are built and tested as the groundwork; not wired into the live canvas.
-- **Golden-image render tests** — RoughKit numeric parity is asserted, but committed pixel-reference images are not.
+- **Golden-image render tests** — RoughKit numeric parity is asserted, but committed pixel-reference images are not (Stage A of Phase 7.5).
 
 **Fidelity**
 - **Fonts** — bundled Excalidraw fonts (Excalifont/Virgil/etc.) + exact Core Text metrics; currently maps to system fallbacks (Bradley Hand / Helvetica / Menlo).

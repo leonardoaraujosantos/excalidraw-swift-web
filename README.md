@@ -18,7 +18,7 @@ Tracked deferrals, in sync with the code. Full detail in [docs/ROADMAP.md](docs/
 - **Collaboration / cloud** (Phase 8) — multiplayer, presence, cursors (data model is collab-ready).
 - **Mermaid → diagram** — the text→elements parser isn't built (tables/charts shipped).
 - **Embeddables / iframes** — render as labelled placeholders; no live `WKWebView` embedding.
-- **Rendering** — live canvas is immediate-mode CoreGraphics (full-redraw + culling); no retained-layer/Metal fast-path, so high-zoom can soften (`DirtyRegion`/`clip` groundwork is in place).
+- **Rendering** — live canvas is immediate-mode CoreGraphics (full-redraw + culling); no retained-layer/Metal fast-path, so high-zoom can soften (`DirtyRegion`/`clip` groundwork is in place). Planned as a staged [Phase 7.5](docs/ROADMAP.md#phase-75--rendering-acceleration--performance) (measure → layered split → tile cache → Metal, gated on profiling).
 - **Fidelity** — bundled Excalidraw fonts + exact text metrics (uses system fallbacks); hachure fill and perfect-freehand outlines are visually faithful, not line-identical; no committed golden-image references.
 - **UI polish** — custom/eyedropper color picker (only preset swatches), arrowhead-type picker, Files-app `DocumentGroup` browser + autosave, laser pointer & animated eraser trail.
 - **Apple Pencil** — hover preview (17.5+) and Pencil Pro squeeze/roll.
