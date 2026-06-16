@@ -2,7 +2,27 @@
 
 A native iOS (iPhone + iPad) port of [Excalidraw](https://excalidraw.com) in Swift / SwiftUI, aiming for feature parity with the web app, first-class Apple Pencil support, and finger-friendly UX.
 
-> Status: **planning**. No app code yet — this repo currently holds the investigation and plan derived from the upstream Excalidraw source.
+> Status: **feature-complete for single-user editing** (roadmap Phases 0–7 done, plus tables & charts). Runs on the iPhone + iPad simulators and device. 474 tests passing, ~94% logic coverage, CI green. Remaining work is collaboration (Phase 8, optional) and a set of tracked gaps — see **[Known gaps](#known-gaps)** below and the consolidated list in [docs/ROADMAP.md](docs/ROADMAP.md#known-gaps--deferred-items).
+
+## What works today
+- **Drawing & tools:** rectangle, diamond, ellipse, line, arrow (incl. **elbow/orthogonal** arrows with draggable fixed segments), freedraw (pressure), text, image, eraser, hand, frames, **sticky notes**, **tables**, **charts** (bar/line).
+- **Hand-drawn rendering:** `RoughKit` (rough.js port, numeric parity validated), all fill styles, **sloppiness** (architect/artist/cartoonist), sharp/round edges, splined multi-point lines, rounded rectangles.
+- **Editing:** select/multi-select, group-aware selection, move/resize/rotate, **font scales on resize**, undo/redo, copy/paste, z-order, align, flip, group/ungroup, lock, duplicate.
+- **Smart features:** object + gap snapping, arrow↔shape binding, **freehand shape recognition** ("Snap to Shape": rectangle/ellipse/diamond/triangle/line/pentagon/hexagon/star/heart/cloud/speech-bubble, hold-to-snap), flowchart node spawning, interactive image crop, element hyperlinks.
+- **Platform:** size-class-adaptive iPhone/iPad UI, dark mode, zen mode, command palette, hardware-keyboard shortcuts, two-finger pan/zoom, palm rejection, localization infra (en/es/ar incl. RTL).
+- **Files:** `.excalidraw` / `.excalidrawlib` round-trip; PNG & SVG export; on-disk library.
+
+<a name="known-gaps"></a>
+## Known gaps (not yet implemented)
+Tracked deferrals, in sync with the code. Full detail in [docs/ROADMAP.md](docs/ROADMAP.md#known-gaps--deferred-items).
+- **Collaboration / cloud** (Phase 8) — multiplayer, presence, cursors (data model is collab-ready).
+- **Mermaid → diagram** — the text→elements parser isn't built (tables/charts shipped).
+- **Embeddables / iframes** — render as labelled placeholders; no live `WKWebView` embedding.
+- **Rendering** — live canvas is immediate-mode CoreGraphics (full-redraw + culling); no retained-layer/Metal fast-path, so high-zoom can soften (`DirtyRegion`/`clip` groundwork is in place).
+- **Fidelity** — bundled Excalidraw fonts + exact text metrics (uses system fallbacks); hachure fill and perfect-freehand outlines are visually faithful, not line-identical; no committed golden-image references.
+- **UI polish** — custom/eyedropper color picker (only preset swatches), arrowhead-type picker, Files-app `DocumentGroup` browser + autosave, laser pointer & animated eraser trail.
+- **Apple Pencil** — hover preview (17.5+) and Pencil Pro squeeze/roll.
+- **Persistence** — PNG scene-embed round-trip (re-open a scene from an exported PNG).
 
 ## Design decisions
 - **Rendering:** SwiftUI `Canvas` + Core Graphics (static scene + interactive overlay), with a Swift port of rough.js (`RoughKit`) for the hand-drawn look.
@@ -14,7 +34,7 @@ A native iOS (iPhone + iPad) port of [Excalidraw](https://excalidraw.com) in Swi
 ## Documents
 - **[docs/INVESTIGATION.md](docs/INVESTIGATION.md)** — analysis of the upstream source: data model, file format, rendering pipeline, interaction model, geometry/math, and full feature inventory.
 - **[docs/PLAN.md](docs/PLAN.md)** — architecture, Swift package structure, key design decisions, testing strategy, risks.
-- **[docs/ROADMAP.md](docs/ROADMAP.md)** — phased delivery plan (Phase 0 foundations → Phase 8 collaboration).
+- **[docs/ROADMAP.md](docs/ROADMAP.md)** — phased delivery plan (Phase 0 foundations → Phase 8 collaboration), with per-phase status and a consolidated **[Known gaps & deferred items](docs/ROADMAP.md#known-gaps--deferred-items)** list.
 
 ## Building
 
@@ -40,6 +60,8 @@ project"**, it's stale package state: run `./scripts/generate.sh` (it clears
 ## Architecture at a glance
 Layered, framework-light core (pure Swift, simulator-independent) under a thin SwiftUI shell:
 
-`ExcalidrawMath` → `ExcalidrawModel` → `ExcalidrawGeometry` · `RoughKit` · `FreehandKit` → `ExcalidrawRender` → `ExcalidrawUI` → `ExcalidrawApp`
+`ExcalidrawMath` → `ExcalidrawModel` → `ExcalidrawGeometry` · `RoughKit` · `FreehandKit` → `ExcalidrawRender` → `ExcalidrawEditor` → `ExcalidrawUI` → `ExcalidrawApp`
+
+(`ExcalidrawEditor` is the pure, UIKit-free editor state machine — tools, selection/transform, undo, and all the generators/algorithms — bridged to SwiftUI by `ExcalidrawUI`'s `EditorModel`.)
 
 See [PLAN.md §2](docs/PLAN.md) for details.

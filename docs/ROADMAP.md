@@ -108,6 +108,40 @@ Legend: 🎯 milestone deliverable · 🧪 test focus · ⚠️ risk/hard part.
 
 ---
 
+## Known gaps & deferred items
+
+The single source of truth for what's **not** yet implemented, kept in sync with the code. Phases 0–7 + tables/charts are complete (474 tests, ~94% logic coverage, CI green); everything below is deliberately deferred, not forgotten.
+
+**Major features**
+- **Collaboration & cloud** (Phase 8) — real-time multiplayer, presence, cursors, follow mode. Not started; the data model (deltas, fractional indices, version nonces) is built collab-ready.
+- **Mermaid → diagram** — no text→diagram parser yet. Output mapping is trivial (reuses nodes + bound elbow arrows); the work is the parser (Swift flowchart-subset, or JSC-embedded `mermaid.js` for full coverage).
+- **Embeddables / iframes** — render as labelled placeholders only; no live `WKWebView` embedding, URL allow-list, or interaction (UI/security work).
+
+**Rendering & performance**
+- **Retained-layer / Metal renderer** — the live SwiftUI `Canvas` is immediate-mode CoreGraphics (full-redraw + viewport `Culling` + `ShapeCache`). No static/dynamic layer split or GPU path, so high-zoom content can soften. `DirtyRegion` + `SceneRenderer.render(clip:)` are built and tested as the groundwork; not wired into the live canvas.
+- **Golden-image render tests** — RoughKit numeric parity is asserted, but committed pixel-reference images are not.
+
+**Fidelity**
+- **Fonts** — bundled Excalidraw fonts (Excalifont/Virgil/etc.) + exact Core Text metrics; currently maps to system fallbacks (Bradley Hand / Helvetica / Menlo).
+- **Hand-drawn parity** — hachure fill and perfect-freehand outlines are visually faithful but not line-identical to upstream (scan-line/edge handling differs).
+
+**UI polish**
+- **Custom color picker** + eyedropper — only the 5 preset stroke/fill swatches today.
+- **Arrowhead-type picker** — the model stores start/end arrowheads; no UI to change them.
+- **Files-app `DocumentGroup` browser + autosave + recents** — the persistence core (`SceneDocument`) is done and tested; not wired to a document browser.
+- **Laser pointer** and animated eraser trail.
+
+**Apple Pencil**
+- **Hover preview** (17.5+) and **Pencil Pro** squeeze/roll. Pressure, tilt, palm rejection, and the hold-to-snap dwell are implemented.
+
+**Persistence**
+- **PNG scene-embed round-trip** — exporting a PNG with embedded scene metadata so it can be re-opened as an editable drawing.
+
+**Collab-oriented model internals** (built lean until Phase 8)
+- Full rocicorp fractional-indexing edge cases + legacy binding-v1 migration; property-level partial deltas & AppState history.
+
+---
+
 ## Sequencing rationale
 - **Phases 0–3 close the vertical slice** and de-risk the two scariest unknowns early: rough.js fidelity (Phase 2) and the raw-touch interaction layer (Phase 3).
 - **File-format fidelity is front-loaded** (Phase 1) so every later phase reads/writes real Excalidraw files.
