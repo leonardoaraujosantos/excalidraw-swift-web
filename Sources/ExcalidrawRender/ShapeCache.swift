@@ -2,14 +2,14 @@ import ExcalidrawModel
 import Foundation
 import RoughKit
 
-/// Memoizes generated `Drawable`s per element, invalidating when the element's
-/// version changes. Mirrors upstream `ShapeCache` (a `WeakMap` keyed by element
-/// with a version guard); here it is an explicit dictionary suitable for value
-/// semantics.
+/// Memoizes generated `Drawable`s per element, regenerating when any
+/// shape-determining property changes. Mirrors upstream `ShapeCache` (a
+/// `WeakMap` keyed by element identity). Keying on the element value rather than
+/// `version` matters because live interaction updates (drag/resize) change
+/// geometry via `Scene.replace` without bumping `version`.
 public final class ShapeCache {
     private struct Entry {
-        var version: Int
-        var versionNonce: Int
+        var element: ExcalidrawElement
         var drawable: Drawable?
     }
 
@@ -17,21 +17,15 @@ public final class ShapeCache {
 
     public init() {}
 
-    /// Return the cached drawable for `element`, regenerating if its version
-    /// changed (or it was never cached).
+    /// Return the cached drawable for `element`, regenerating whenever the
+    /// element differs from the cached one (or was never cached).
     public func drawable(for element: ExcalidrawElement) -> Drawable? {
         let id = element.id
-        if let entry = entries[id],
-           entry.version == element.base.version,
-           entry.versionNonce == element.base.versionNonce {
+        if let entry = entries[id], entry.element == element {
             return entry.drawable
         }
         let drawable = ElementDrawable.drawable(for: element)
-        entries[id] = Entry(
-            version: element.base.version,
-            versionNonce: element.base.versionNonce,
-            drawable: drawable
-        )
+        entries[id] = Entry(element: element, drawable: drawable)
         return drawable
     }
 

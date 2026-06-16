@@ -113,6 +113,19 @@ final class RenderIntegrationTests: XCTestCase {
         XCTAssertEqual(cache.count, 0)
     }
 
+    func testShapeCacheRegeneratesOnGeometryChangeWithoutVersionBump() {
+        // Regression: while drawing/resizing, size changes via Scene.replace
+        // WITHOUT a version bump. The cache must still regenerate (otherwise the
+        // shape renders at its initial 0×0 size — an empty box).
+        let cache = ShapeCache()
+        var rect = element(.rectangle, w: 0, h: 0)
+        let zeroSize = cache.drawable(for: rect)
+        rect.base.width = 120
+        rect.base.height = 80 // no version change, as during a live drag
+        let resized = cache.drawable(for: rect)
+        XCTAssertNotEqual(zeroSize, resized)
+    }
+
     // MARK: First pixels
 
     func testRectangleRastersToNonBlankImage() throws {

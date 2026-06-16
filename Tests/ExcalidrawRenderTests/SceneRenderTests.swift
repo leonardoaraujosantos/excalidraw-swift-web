@@ -156,6 +156,31 @@ final class SceneRenderTests: XCTestCase {
         XCTAssertGreaterThan(inkedCount(ctx, width: w, height: h), 40)
     }
 
+    func testReusedRendererReflectsResizeWithoutVersionBump() {
+        // Regression for the "empty rectangle while drawing" bug: the same
+        // renderer must redraw a shape after its size grows via replace().
+        let renderer = SceneRenderer()
+        var rect = base("r", x: 10, y: 10, w: 1, h: 1)
+        rect.backgroundColor = "#ff0000"
+        rect.fillStyle = .solid
+        var scene = Scene(elements: [ExcalidrawElement(base: rect, kind: .rectangle)])
+
+        let (w, h) = (160, 120)
+        let ctx1 = context(width: w, height: h)
+        renderer.render(scene, in: ctx1, viewport: Viewport(), size: CGSize(width: w, height: h))
+        let tiny = inkedCount(ctx1, width: w, height: h)
+
+        // Grow it (no version bump), render again with the SAME renderer.
+        rect.width = 120
+        rect.height = 80
+        scene.replace(ExcalidrawElement(base: rect, kind: .rectangle))
+        let ctx2 = context(width: w, height: h)
+        renderer.render(scene, in: ctx2, viewport: Viewport(), size: CGSize(width: w, height: h))
+        let grown = inkedCount(ctx2, width: w, height: h)
+
+        XCTAssertGreaterThan(grown, tiny + 500)
+    }
+
     func testColorParser() throws {
         let red = try XCTUnwrap(ColorParser.cgColor("#ff0000"))
         XCTAssertEqual(red.components?[0], 1)
