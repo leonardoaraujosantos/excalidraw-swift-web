@@ -17,6 +17,12 @@ public final class EditorController {
     /// Live box-selection rectangle, for the overlay (nil when not box-selecting).
     public private(set) var selectionRect: BoundingBox?
 
+    /// Object snapping (align to other elements' edges/centres while dragging).
+    public var snapEnabled = false
+    /// Active snap guide lines during a drag (scene coordinates), for the overlay.
+    public private(set) var snapLinesX: [Double] = []
+    public private(set) var snapLinesY: [Double] = []
+
     private var nextID: () -> String
     private var nextSeed: () -> Int
 
@@ -108,12 +114,16 @@ public final class EditorController {
         case .erasing:
             eraseAt(event.scenePoint)
         case let .moving(origin, originals):
-            let dx = event.scenePoint.x - origin.x
-            let dy = event.scenePoint.y - origin.y
+            var dx = event.scenePoint.x - origin.x
+            var dy = event.scenePoint.y - origin.y
+            if snapEnabled, !event.alt {
+                applyObjectSnap(originals: originals, dx: &dx, dy: &dy)
+            } else {
+                snapLinesX = []; snapLinesY = []
+            }
             store.modifyScene { scene in
-                for (id, original) in originals {
+                for (_, original) in originals {
                     scene.replace(Transform.translate(original, dx: dx, dy: dy))
-                    _ = id
                 }
             }
         case let .boxSelecting(origin):
@@ -152,6 +162,7 @@ public final class EditorController {
             store.commit()
             selectedIDs = []
         case .moving, .resizing, .rotating:
+            snapLinesX = []; snapLinesY = []
             store.commit()
         case let .boxSelecting(origin):
             selectWithin(Self.bbox(origin, event.scenePoint), additive: event.toggleSelection)
@@ -262,6 +273,25 @@ public final class EditorController {
         }
         store.commit()
         if !toolLocked { activeTool = .selection }
+    }
+
+    /// Adjust a drag offset to snap the moving group to other elements,
+    /// recording the matched guide lines.
+    private func applyObjectSnap(originals: [String: ExcalidrawElement], dx: inout Double, dy: inout Double) {
+        let moved = originals.values.map { Transform.translate($0, dx: dx, dy: dy) }
+        guard let movingBounds = ElementGeometry.commonBounds(moved) else {
+            snapLinesX = []; snapLinesY = []
+            return
+        }
+        let movingIDs = Set(originals.keys)
+        let statics = scene.visibleElements
+            .filter { !movingIDs.contains($0.id) }
+            .map { ElementGeometry.bounds($0) }
+        let result = Snapping.snap(moving: movingBounds, statics: statics, threshold: Snapping.defaultDistance / zoom)
+        dx += result.offsetX
+        dy += result.offsetY
+        snapLinesX = result.verticalLines
+        snapLinesY = result.horizontalLines
     }
 
     private func eraseAt(_ point: Point) {
@@ -527,6 +557,28 @@ public final class EditorController {
         }
         selectedIDs = [element.id]
         return element.id
+    }
+
+    /// Stamp a library item (a group of elements) onto the canvas with its
+    /// top-left at `point`, re-id'd, and select it.
+    @discardableResult
+    public func insertLibraryItem(_ elements: [ExcalidrawElement], at point: Point) -> [String] {
+        guard let bounds = ElementGeometry.commonBounds(elements.filter { !$0.base.isDeleted }) else { return [] }
+        let dx = point.x - bounds.minX
+        let dy = point.y - bounds.minY
+        var newIDs: [String] = []
+        store.transaction { scene in
+            for element in elements where !element.base.isDeleted {
+                var copy = element
+                copy.base.id = nextID()
+                copy.base.x += dx
+                copy.base.y += dy
+                scene.add(copy)
+                newIDs.append(copy.id)
+            }
+        }
+        selectedIDs = Set(newIDs)
+        return newIDs
     }
 
     private func filesFor(_ elements: [ExcalidrawElement]) -> [String: BinaryFileData] {
