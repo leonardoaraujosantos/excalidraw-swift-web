@@ -419,6 +419,14 @@ public struct EditorView: View {
                 .accessibilityIdentifier("library")
             Button { model.showCommandPalette = true } label: { Image(systemName: "command") }
                 .accessibilityIdentifier("command-palette")
+            if model.isMetalAvailable {
+                Button { model.toggleRenderer() } label: {
+                    Image(systemName: model.rendererKind == .metal ? "cpu.fill" : "cpu")
+                        .foregroundStyle(model.rendererKind == .metal ? Color.accentColor : Color.primary)
+                }
+                .accessibilityIdentifier("renderer-toggle")
+                .accessibilityValue(model.rendererKind.label)
+            }
             Button { model.toggleTheme() } label: {
                 Image(systemName: model.theme == .dark ? "sun.max" : "moon")
             }.accessibilityIdentifier("theme-toggle")

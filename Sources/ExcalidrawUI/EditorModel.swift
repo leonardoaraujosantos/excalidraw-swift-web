@@ -11,7 +11,10 @@ import SwiftUI
 @MainActor
 public final class EditorModel: ObservableObject {
     public let controller: EditorController
-    let renderer = SceneRenderer()
+    /// Active scene renderer (Core Graphics by default; swappable to Metal via
+    /// `setRenderer`). See `EditorModel+Renderer.swift`.
+    var renderer: SceneRendering = SceneRenderer()
+    @Published public internal(set) var rendererKind: RendererKind = .coreGraphics
 
     @Published public var viewport: Viewport
     @Published public internal(set) var revision = 0
@@ -45,14 +48,6 @@ public final class EditorModel: ObservableObject {
     @Published public var showCommandPalette = false
     @Published public var snapEnabled = false {
         didSet { controller.snapEnabled = snapEnabled }
-    }
-
-    public func toggleTheme() {
-        theme = theme == .light ? .dark : .light; revision += 1
-    }
-
-    public func toggleZenMode() {
-        zenMode.toggle()
     }
 
     public func toggleSnap() {

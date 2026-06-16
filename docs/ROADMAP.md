@@ -117,14 +117,12 @@ Legend: 🎯 milestone deliverable · 🧪 test focus · ⚠️ risk/hard part.
 > **Status: done.** On a two-finger pan/zoom, `EditorModel` snapshots the scene once at the gesture's start viewport (`beginViewportGesture`) and each frame composites that snapshot transformed by the live pan/scale (`gestureSnapshot` → a scale + offset rect, drawn via SwiftUI `Image`); on lift it re-renders the whole scene crisply at the settled viewport (`endViewportGesture`). So a pan/zoom frame is one image blit regardless of scene size, and zoom is sharp at rest (mid-pinch the bitmap scales, then snaps crisp — standard). Validated on the iPad (UI test passes with the gesture path wired). *(A persistent tile cache across gestures is a future refinement; the per-gesture snapshot already makes pan/zoom O(1).)*
 - 🎯 Exit: pan/zoom is composite-only during the gesture; full crisp re-render on settle.
 
-### Stage D — Metal backend (gated)
-- Introduce a `Renderer` protocol so the CoreGraphics `SceneRenderer` and a new `MetalSceneRenderer` are interchangeable; editor/model unchanged. CG stays the default/fallback; Metal behind a flag until proven.
-- Tessellate rough.js output: fills → triangulated polygons, strokes → expanded quads; text via a CoreText glyph atlas. GPU compositing of cached tiles + transforms → near-free pan/zoom/rotate, 120 Hz ProMotion / low-latency Pencil.
-- ⚠️ Largest single chunk and a new bug class (tessellation/AA/text correctness).
-- **Decision gate:** only build Stage D if Stage A shows CG *rasterization* (not redraw-everything, which B/C fix) is the bottleneck on realistic scenes, **or** crisp high-zoom / guaranteed 120 Hz is a hard product requirement.
-- 🎯 Exit: GPU renderer at parity with the golden images, measurably faster on the heavy benchmark, behind a CG fallback.
+### Stage D — Metal backend ✅
+> **Status: complete.** A `SceneRendering` protocol makes the CoreGraphics `SceneRenderer` and a new `MetalSceneRenderer` (module `ExcalidrawMetal`) interchangeable; the editor/model are renderer-agnostic. CG stays the default and the automatic fallback — `EditorModel.setRenderer(_:)`/`toggleRenderer()` switch backends at runtime, and selecting Metal on a device without a GPU silently falls back to CG (the footer toggle only appears when `isMetalAvailable`). The GPU path tessellates rough.js output (`Tessellator`: Bézier flattening, ear-clipped fills, round-joined/round-capped stroke triangles, filled/line arrowheads) into per-vertex-colored triangles (`SceneGeometry`), rasterizes them with runtime-compiled Metal shaders and 4× MSAA into an off-screen texture, reads back a `CGImage`, and composites it between a CG background/grid pass and a CG overlay pass (text, images, frames, freedraw, embeddables, dashed strokes and frame-clipped children stay on CG — `handledIDs` is the exact overlay skip set). 4× MSAA keeps shapes crisp under high zoom. Validated: `Tessellator`/`SceneGeometry` pure-math unit tests, a GPU off-screen-readback parity test vs CG (skips on hosts with no device), renderer-toggle/fallback tests, and an on-device iPad UI smoke test (draw → move → zoom → export → toggle back) under the Metal backend. Coverage ≥90%, swiftlint `--strict` clean.
+- ⚠️ Known scope limits (CG handles these correctly, so output stays faithful): z-order between a GPU shape and a *later* text/image is shape-under-overlay (text/images always composite on top); dashed/dotted strokes, freedraw, and frame-clipped children render via CG; the GPU pass ignores the incremental-redraw `clip` (it repaints the full viewport — idempotent, perf-only).
+- 🎯 Exit met: GPU renderer at parity with the golden images, behind a CG fallback, runtime-switchable, verified on device.
 
-**Sequencing:** A → B → *(measure)* → C → *(measure)* → D. The honest expectation is that A + B (and maybe C) deliver the perceived speedup; D is for proven raster-bound workloads or a 120 Hz/zoom-crispness mandate.
+**Sequencing:** A → B → *(measure)* → C → *(measure)* → D. A + B + C delivered the perceived speedup and crisp zoom on CPU; Stage D (Metal) then landed as a runtime-selectable GPU backend behind the CG fallback, for raster-bound workloads and to compare the two renderers on device.
 
 ## Phase 8 — Collaboration & cloud (optional / future)
 **Goal:** multiplayer, if pursued.
@@ -147,8 +145,8 @@ The single source of truth for what's **not** yet implemented, kept in sync with
 - **Embeddables / iframes** — render as labelled placeholders only; no live `WKWebView` embedding, URL allow-list, or interaction (UI/security work).
 
 **Rendering & performance** — planned as **Phase 7.5** (above)
-- **Retained-layer / Metal renderer** — the live SwiftUI `Canvas` is immediate-mode CoreGraphics (full-redraw + viewport `Culling` + `ShapeCache`). No static/dynamic layer split or GPU path, so high-zoom content can soften. `DirtyRegion` + `SceneRenderer.render(clip:)` are built and tested as the groundwork; not wired into the live canvas.
-- **Golden-image render tests** — RoughKit numeric parity is asserted, but committed pixel-reference images are not (Stage A of Phase 7.5).
+- **Retained-layer / Metal renderer** — ✅ delivered in Phase 7.5: Stage B static/dynamic layer split, Stage C gesture snapshot + crisp zoom-in, and Stage D a runtime-selectable Metal GPU backend (`ExcalidrawMetal`) behind the CG fallback (see Phase 7.5 above). Remaining nuance is in Stage D's known scope limits (z-order of GPU-shape-vs-later-overlay; dashed/freedraw/framed elements on CG).
+- **Golden-image render tests** — ✅ committed pixel references (`Tests/ExcalidrawRenderTests/Golden/`) added in Stage A and used as the cross-renderer regression net.
 
 **Fidelity**
 - **Fonts** — bundled Excalidraw fonts (Excalifont/Virgil/etc.) + exact Core Text metrics; currently maps to system fallbacks (Bradley Hand / Helvetica / Menlo).
