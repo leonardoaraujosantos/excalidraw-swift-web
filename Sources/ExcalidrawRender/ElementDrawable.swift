@@ -22,6 +22,9 @@ public enum ElementDrawable {
 
         switch element.kind {
         case .rectangle, .embeddable, .iframe:
+            if rounded {
+                return generator.polygon(roundedRectanglePoints(w, h), options: o)
+            }
             return generator.rectangle(x: 0, y: 0, width: w, height: h, options: o)
         case .diamond:
             // Diamond vertices at the midpoints of each bounding-box edge.
@@ -49,5 +52,27 @@ public enum ElementDrawable {
     private static func isLoop(_ points: [Point]) -> Bool {
         guard points.count >= 3, let first = points.first, let last = points.last else { return false }
         return first.distance(to: last) <= 40
+    }
+
+    /// Closed outline of a rounded rectangle (`w × h`), with each corner sampled
+    /// as a quarter-arc, for the hand-drawn rounded look.
+    static func roundedRectanglePoints(_ w: Double, _ h: Double, samples: Int = 6) -> [Point] {
+        let r = min(min(w, h) / 4, 32)
+        guard r > 0 else { return [Point(0, 0), Point(w, 0), Point(w, h), Point(0, h)] }
+        var points: [Point] = []
+        // Corner centres and arc start angles, clockwise from the top-left.
+        let corners: [(cx: Double, cy: Double, start: Double)] = [
+            (r, r, Double.pi), // top-left
+            (w - r, r, 1.5 * Double.pi), // top-right
+            (w - r, h - r, 0), // bottom-right
+            (r, h - r, 0.5 * Double.pi) // bottom-left
+        ]
+        for corner in corners {
+            for k in 0 ... samples {
+                let a = corner.start + (Double.pi / 2) * Double(k) / Double(samples)
+                points.append(Point(corner.cx + r * cos(a), corner.cy + r * sin(a)))
+            }
+        }
+        return points
     }
 }

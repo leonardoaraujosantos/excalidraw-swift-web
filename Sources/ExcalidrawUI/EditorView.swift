@@ -257,6 +257,9 @@ public struct EditorView: View {
                 Stepper("W \(Int(model.strokeWidth))", value: Binding(
                     get: { model.strokeWidth }, set: { model.setStrokeWidth($0) }
                 ), in: 1 ... 20).fixedSize()
+                Divider().frame(height: 24)
+                sloppinessControl
+                edgesControl
                 if showFontControls {
                     Divider().frame(height: 24)
                     fontControls
@@ -302,6 +305,46 @@ public struct EditorView: View {
         (.solid, "Solid", "square.fill"),
         (.zigzag, "Zigzag", "scribble")
     ]
+
+    private let sloppinessLevels: [(Double, String, String)] = [
+        (0, "Architect", "pencil.line"),
+        (1, "Artist", "scribble"),
+        (2, "Cartoonist", "scribble.variable")
+    ]
+
+    /// Sloppiness (hand-drawn roughness) picker.
+    private var sloppinessControl: some View {
+        HStack(spacing: 4) {
+            ForEach(sloppinessLevels, id: \.0) { value, name, icon in
+                Button { model.setRoughness(value) } label: {
+                    Image(systemName: icon)
+                        .frame(width: 26, height: 26)
+                        .background(model.roughness == value ? Color.accentColor.opacity(0.25) : .clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .accessibilityIdentifier("sloppiness-\(Int(value))")
+                .help(name)
+            }
+        }
+    }
+
+    /// Sharp / round edges toggle.
+    private var edgesControl: some View {
+        HStack(spacing: 4) {
+            Button { model.setEdgesRound(false) } label: {
+                Image(systemName: "square")
+                    .frame(width: 26, height: 26)
+                    .background(model.edgesRound ? .clear : Color.accentColor.opacity(0.25))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }.accessibilityIdentifier("edges-sharp")
+            Button { model.setEdgesRound(true) } label: {
+                Image(systemName: "app.dashed")
+                    .frame(width: 26, height: 26)
+                    .background(model.edgesRound ? Color.accentColor.opacity(0.25) : .clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }.accessibilityIdentifier("edges-round")
+        }
+    }
 
     /// Fill-pattern picker, shown when a fill colour is set.
     private var fillStyleControl: some View {

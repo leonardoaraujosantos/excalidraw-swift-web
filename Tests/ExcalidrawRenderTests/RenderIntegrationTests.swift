@@ -61,6 +61,20 @@ final class RenderIntegrationTests: XCTestCase {
         XCTAssertEqual(ElementDrawable.drawable(for: element(.ellipse))?.shape, "ellipse")
     }
 
+    func testRoundedMultiPointLineIsACurve() {
+        var e = element(.line(LinearProperties(points: [Point(0, 0), Point(50, 0), Point(50, 50)])))
+        e.base.roundness = Roundness(type: RoundnessType.proportionalRadius)
+        XCTAssertEqual(ElementDrawable.drawable(for: e)?.shape, "curve")
+    }
+
+    func testRoundedRectangleDrawsAsPolygonOutline() {
+        var e = element(.rectangle, w: 120, h: 80)
+        e.base.roundness = Roundness(type: RoundnessType.adaptiveRadius)
+        // A rounded rectangle is built from a sampled rounded outline (polygon),
+        // not the sharp 4-corner rectangle primitive.
+        XCTAssertEqual(ElementDrawable.drawable(for: e)?.shape, "polygon")
+    }
+
     func testRendererHandledKindsReturnNilDrawable() {
         // Text, image, freedraw and frame are drawn directly by the renderer.
         XCTAssertNil(ElementDrawable.drawable(for: element(.text(TextProperties()))))

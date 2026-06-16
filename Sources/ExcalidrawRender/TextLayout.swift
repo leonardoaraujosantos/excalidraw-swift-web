@@ -11,6 +11,12 @@ public enum TextLayout {
     public static func draw(
         _ text: TextProperties, base _: BaseProperties, in ctx: CGContext, color: CGColor
     ) {
+        // Crisp glyphs at any size: antialias and let Core Text rasterize at the
+        // current (zoom/font-scaled) CTM rather than scaling a cached bitmap.
+        ctx.setShouldAntialias(true)
+        ctx.setAllowsAntialiasing(true)
+        ctx.setShouldSubpixelPositionFonts(true)
+        ctx.setShouldSubpixelQuantizeFonts(false)
         let font = CTFontCreateWithName(fontName(for: text.fontFamily) as CFString, text.fontSize, nil)
         let ascent = CTFontGetAscent(font)
         let lineHeightPx = text.fontSize * text.lineHeight

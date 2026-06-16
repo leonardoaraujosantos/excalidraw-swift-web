@@ -22,6 +22,10 @@ public final class EditorModel: ObservableObject {
     @Published public var fillStyle: ExcalidrawModel.FillStyle = .hachure
     @Published public var strokeStyle: ExcalidrawModel.StrokeStyle = .solid
     @Published public var opacity: Double = 100
+    /// Hand-drawn roughness: 0 = architect, 1 = artist, 2 = cartoonist.
+    @Published public var roughness: Double = 1
+    /// Rounded edges/corners (linear splines, rounded rectangles).
+    @Published public var edgesRound: Bool = true
     @Published public var elbowed: Bool = false
     @Published public var fontFamily: Int = FontFamily.default
     @Published public var fontSize: Double = 20
@@ -170,6 +174,29 @@ public final class EditorModel: ObservableObject {
         opacity = value
         controller.currentItem.opacity = value
         applyToSelection { $0.base.opacity = value }
+    }
+
+    /// Set the hand-drawn roughness (0 architect, 1 artist, 2 cartoonist).
+    public func setRoughness(_ value: Double) {
+        roughness = value
+        controller.currentItem.roughness = value
+        applyToSelection { $0.base.roughness = value }
+    }
+
+    /// Toggle rounded edges/corners on the selection and for new elements.
+    public func setEdgesRound(_ round: Bool) {
+        edgesRound = round
+        controller.currentItem.roundEdges = round
+        applyToSelection { element in
+            element.base.roundness = round ? Roundness(type: roundnessType(for: element)) : nil
+        }
+    }
+
+    private func roundnessType(for element: ExcalidrawElement) -> Int {
+        switch element.kind {
+        case .line, .arrow: RoundnessType.proportionalRadius
+        default: RoundnessType.adaptiveRadius
+        }
     }
 
     public func setFontFamily(_ family: Int) {

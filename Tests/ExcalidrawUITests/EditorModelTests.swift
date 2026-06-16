@@ -399,6 +399,25 @@ final class EditorModelTests: XCTestCase {
         XCTAssertFalse(m.addFlowchartNode(.right)) // nothing selected
     }
 
+    func testSloppinessAppliesToSelection() {
+        let m = EditorModel()
+        m.select(tool: .rectangle)
+        draw(m, from: CGPoint(x: 0, y: 0), to: CGPoint(x: 60, y: 40))
+        m.setRoughness(2)
+        XCTAssertEqual(m.controller.selectedElements.first?.base.roughness, 2)
+        XCTAssertEqual(m.controller.currentItem.roughness, 2)
+    }
+
+    func testEdgesToggleSetsAndClearsRoundness() {
+        let m = EditorModel()
+        m.select(tool: .rectangle)
+        draw(m, from: CGPoint(x: 0, y: 0), to: CGPoint(x: 60, y: 40))
+        m.setEdgesRound(false)
+        XCTAssertNil(m.controller.selectedElements.first?.base.roundness)
+        m.setEdgesRound(true)
+        XCTAssertEqual(m.controller.selectedElements.first?.base.roundness?.type, RoundnessType.adaptiveRadius)
+    }
+
     func testThemeAndZenToggles() {
         let m = EditorModel()
         XCTAssertEqual(m.theme, .light)

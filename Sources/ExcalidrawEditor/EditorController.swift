@@ -401,7 +401,7 @@ public final class EditorController {
 
     private func beginCreating(kind: ElementKind, at origin: Point, pressure: Double) {
         let base = currentItem.makeBase(id: nextID(), seed: nextSeed(), x: origin.x, y: origin.y)
-        let element: ExcalidrawElement
+        var element: ExcalidrawElement
         switch kind {
         case .line:
             element = ExcalidrawElement(base: base, kind: .line(LinearProperties(points: [Point(0, 0), Point(0, 0)])))
@@ -423,9 +423,21 @@ public final class EditorController {
         default:
             element = ExcalidrawElement(base: base, kind: kind)
         }
+        // Rounded edges by default: splined lines/arrows, rounded rect/diamond.
+        if currentItem.roundEdges, let type = Self.roundnessType(for: kind) {
+            element.base.roundness = Roundness(type: type)
+        }
         store.modifyScene { $0.add(element) }
         selectedIDs = [element.id]
         interaction = .creating(id: element.id, origin: origin, moved: false)
+    }
+
+    static func roundnessType(for kind: ElementKind) -> Int? {
+        switch kind {
+        case .line, .arrow: RoundnessType.proportionalRadius
+        case .rectangle, .diamond: RoundnessType.adaptiveRadius
+        default: nil
+        }
     }
 
     private func appendFreehandPoint(id: String, origin: Point, point: Point, pressure: Double) {

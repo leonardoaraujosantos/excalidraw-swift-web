@@ -15,6 +15,8 @@ public struct CurrentItemProperties: Sendable {
     public var fontSize: Double = 20
     /// Create arrows as orthogonal "elbow" arrows.
     public var elbowed: Bool = false
+    /// Give new elements rounded edges/corners (splined lines, rounded rects).
+    public var roundEdges: Bool = true
 
     public init() {}
 
