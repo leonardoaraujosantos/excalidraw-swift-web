@@ -14,7 +14,7 @@ public final class EditorModel: ObservableObject {
     let renderer = SceneRenderer()
 
     @Published public var viewport: Viewport
-    @Published public private(set) var revision = 0
+    @Published public internal(set) var revision = 0
     @Published public var activeTool: Tool = .selection
     @Published public var strokeColor: String = "#1e1e1e"
     @Published public var strokeWidth: Double = 2
@@ -133,14 +133,17 @@ public final class EditorModel: ObservableObject {
 
     // MARK: Layered rendering (Phase 7.5 Stage B)
 
-    /// Display scale for the offscreen static-layer image (set from the canvas).
-    public var displayScale: Double = 2
+    public var displayScale: Double = 2 // offscreen-image scale; set from the canvas
     let staticLayer = StaticLayerCache()
-    /// Elements redrawn every frame during an interaction (the moved/created
-    /// element plus its bound arrows and any frame children); everything else is
-    /// the cached static layer. (Layered rendering lives in `EditorModel+Rendering`.)
+    /// In-flight elements (moved/created + bound arrows + frame children); the
+    /// rest is the cached static layer. (Methods live in `EditorModel+Rendering`.)
     var dynamicIDs: Set<String> = []
     var staticToken = 0
+
+    /// Stage C: pan/zoom snapshots the scene once and composites it transformed.
+    let gestureLayer = StaticLayerCache()
+    var isViewportGesturing = false
+    var gestureViewport = Viewport()
 
     // MARK: Viewport (two-finger pan / pinch)
 

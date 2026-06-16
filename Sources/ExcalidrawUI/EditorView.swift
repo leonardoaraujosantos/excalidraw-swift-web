@@ -177,9 +177,14 @@ public struct EditorView: View {
         GeometryReader { geo in
             Canvas { context, size in
                 _ = model.revision
+                // Stage C: during a pan/zoom gesture, composite the transformed
+                // scene snapshot (the view background shows through revealed area).
+                if let snapshot = model.gestureSnapshot(size: size) {
+                    context.draw(Image(decorative: snapshot.image, scale: model.displayScale), in: snapshot.rect)
+                }
                 // Stage B: during an interaction, blit the cached static layer
                 // and redraw only the in-flight elements; otherwise full render.
-                if let staticImage = model.staticLayerImage(size: size) {
+                else if let staticImage = model.staticLayerImage(size: size) {
                     context.draw(
                         Image(decorative: staticImage, scale: model.displayScale),
                         in: CGRect(origin: .zero, size: size)

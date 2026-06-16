@@ -479,6 +479,35 @@ final class EditorModelTests: XCTestCase {
         XCTAssertNil(m.staticLayerImage(size: CGSize(width: 400, height: 300)))
     }
 
+    func testViewportGestureSnapshotTracksPanAndZoom() {
+        let m = EditorModel(viewport: Viewport(scrollX: 0, scrollY: 0, zoom: 1))
+        m.canvasSize = CGSize(width: 400, height: 300)
+        m.select(tool: .rectangle)
+        draw(m, from: CGPoint(x: 20, y: 20), to: CGPoint(x: 80, y: 60))
+
+        // Idle: no gesture snapshot.
+        XCTAssertNil(m.gestureSnapshot(size: CGSize(width: 400, height: 300)))
+
+        m.beginViewportGesture()
+        XCTAssertTrue(m.isViewportGesturing)
+        // Pan by (10, 20) view points at zoom 1 (scroll += translation/zoom).
+        m.panZoom(translation: CGSize(width: 10, height: 20), scale: 1)
+        let panned = m.gestureSnapshot(size: CGSize(width: 400, height: 300))
+        XCTAssertNotNil(panned)
+        XCTAssertEqual(panned?.rect.origin.x ?? .nan, 10, accuracy: 1e-6)
+        XCTAssertEqual(panned?.rect.origin.y ?? .nan, 20, accuracy: 1e-6)
+        XCTAssertEqual(panned?.rect.width ?? .nan, 400, accuracy: 1e-6) // scale 1 → unchanged size
+
+        // Zoom to 2×: snapshot scales up.
+        m.panZoom(translation: .zero, scale: 2)
+        let zoomed = m.gestureSnapshot(size: CGSize(width: 400, height: 300))
+        XCTAssertEqual(zoomed?.rect.width ?? .nan, 800, accuracy: 1e-6) // 400 × (2/1)
+
+        m.endViewportGesture()
+        XCTAssertFalse(m.isViewportGesturing)
+        XCTAssertNil(m.gestureSnapshot(size: CGSize(width: 400, height: 300)))
+    }
+
     func testThemeAndZenToggles() {
         let m = EditorModel()
         XCTAssertEqual(m.theme, .light)

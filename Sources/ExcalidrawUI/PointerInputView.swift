@@ -85,7 +85,10 @@
             cancelDwell()
             if gesturing {
                 let remaining = (event?.allTouches ?? []).filter { $0.phase != .ended && $0.phase != .cancelled }
-                if remaining.count < 2 { gesturing = false }
+                if remaining.count < 2 {
+                    gesturing = false
+                    model?.endViewportGesture()
+                }
             } else if let touch = touches.first, accept(touch) {
                 // The dwell already finalized + recognized this stroke.
                 if recognizedViaDwell { recognizedViaDwell = false } else { forward(.up, touch) }
@@ -155,6 +158,8 @@
 
         private func beginGesture(_ touches: Set<UITouch>) {
             gesturing = true
+            cancelDwell()
+            model?.beginViewportGesture()
             let pts = touches.map { $0.location(in: self) }
             lastCentroid = centroid(pts)
             lastDistance = spread(pts, around: lastCentroid)

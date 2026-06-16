@@ -73,14 +73,51 @@ public extension EditorModel {
         )
     }
 
-    private func renderOffscreen(skipping: Set<String>, size: CGSize) -> CGImage? {
+    // MARK: Pan/zoom gesture (Stage C)
+
+    /// Snapshot the scene at the current viewport and enter gesture mode; frames
+    /// during the gesture composite this snapshot transformed (cheap), instead
+    /// of re-rendering every element.
+    func beginViewportGesture() {
+        gestureViewport = viewport
+        isViewportGesturing = true
+        gestureLayer.invalidate()
+    }
+
+    /// End gesture mode and force a crisp full re-render at the settled viewport.
+    func endViewportGesture() {
+        isViewportGesturing = false
+        gestureLayer.invalidate()
+        revision += 1
+    }
+
+    /// The gesture snapshot plus the view-space rect to draw it in, mapping the
+    /// snapshot (taken at `gestureViewport`) onto the current viewport, or `nil`
+    /// when not gesturing. Drawn via SwiftUI `Image` (orientation-safe); the
+    /// canvas's own background shows through any newly revealed area.
+    func gestureSnapshot(size: CGSize) -> (image: CGImage, rect: CGRect)? {
+        guard isViewportGesturing, size.width > 0, size.height > 0,
+              let image = gestureLayer.image(token: 1, build: {
+                  renderOffscreen(skipping: [], size: size, viewport: gestureViewport)
+              }) else { return nil }
+        let scale = viewport.zoom / gestureViewport.zoom
+        let offsetX = (viewport.scrollX - gestureViewport.scrollX) * viewport.zoom
+        let offsetY = (viewport.scrollY - gestureViewport.scrollY) * viewport.zoom
+        let rect = CGRect(x: offsetX, y: offsetY, width: size.width * scale, height: size.height * scale)
+        return (image, rect)
+    }
+
+    private func renderOffscreen(skipping: Set<String>, size: CGSize, viewport: Viewport? = nil) -> CGImage? {
         let w = Int(size.width * displayScale), h = Int(size.height * displayScale)
         guard w > 0, h > 0, let ctx = CGContext(
             data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
         ctx.scaleBy(x: displayScale, y: displayScale)
-        renderer.render(controller.scene, in: ctx, viewport: viewport, size: size, theme: theme, skipping: skipping)
+        renderer.render(
+            controller.scene, in: ctx, viewport: viewport ?? self.viewport,
+            size: size, theme: theme, skipping: skipping
+        )
         return ctx.makeImage()
     }
 }

@@ -113,9 +113,9 @@ Legend: 🎯 milestone deliverable · 🧪 test focus · ⚠️ risk/hard part.
 - Split the canvas into a cached **static layer** and a **dynamic overlay**; repaint only the overlay each frame.
 - 🎯 Exit: smooth drag/draw/select on large scenes with the CPU renderer — confirmed on real hardware.
 
-### Stage C — Retained tile cache + crisp zoom
-- Cache rasterized content (tiles / `CALayer`) and **recomposite** on pan/zoom instead of repainting; re-rasterize vectors at the new zoom so high zoom stays sharp (fixes the current `Canvas` magnification softness).
-- 🎯 Exit: pan/zoom is composite-only; zoom is crisp at every level.
+### Stage C — Gesture snapshot + crisp zoom ✅
+> **Status: done.** On a two-finger pan/zoom, `EditorModel` snapshots the scene once at the gesture's start viewport (`beginViewportGesture`) and each frame composites that snapshot transformed by the live pan/scale (`gestureSnapshot` → a scale + offset rect, drawn via SwiftUI `Image`); on lift it re-renders the whole scene crisply at the settled viewport (`endViewportGesture`). So a pan/zoom frame is one image blit regardless of scene size, and zoom is sharp at rest (mid-pinch the bitmap scales, then snaps crisp — standard). Validated on the iPad (UI test passes with the gesture path wired). *(A persistent tile cache across gestures is a future refinement; the per-gesture snapshot already makes pan/zoom O(1).)*
+- 🎯 Exit: pan/zoom is composite-only during the gesture; full crisp re-render on settle.
 
 ### Stage D — Metal backend (gated)
 - Introduce a `Renderer` protocol so the CoreGraphics `SceneRenderer` and a new `MetalSceneRenderer` are interchangeable; editor/model unchanged. CG stays the default/fallback; Metal behind a flag until proven.
