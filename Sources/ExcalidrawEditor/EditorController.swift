@@ -8,23 +8,27 @@ import Foundation
 /// (no UIKit) so it is fully unit-testable; the UI layer feeds it `PointerEvent`s
 /// and renders `scene` plus the overlay. Mirrors the pointer flow of `App.tsx`.
 public final class EditorController {
-    public private(set) var store: Store
+    // `internal(set)` so the command extension (in a separate file) can mutate.
+    public internal(set) var store: Store
     public var activeTool: Tool = .selection
     public var toolLocked = false
     public var currentItem = CurrentItemProperties()
     public var zoom: Double = 1
-    public private(set) var selectedIDs: Set<String> = []
+    public internal(set) var selectedIDs: Set<String> = []
     /// Live box-selection rectangle, for the overlay (nil when not box-selecting).
     public private(set) var selectionRect: BoundingBox?
 
     /// Object snapping (align to other elements' edges/centres while dragging).
     public var snapEnabled = false
+    /// Bind arrow endpoints to nearby shapes on creation; bound arrows follow
+    /// their shapes when those move/resize.
+    public var bindingEnabled = true
     /// Active snap guide lines during a drag (scene coordinates), for the overlay.
     public private(set) var snapLinesX: [Double] = []
     public private(set) var snapLinesY: [Double] = []
 
-    private var nextID: () -> String
-    private var nextSeed: () -> Int
+    let nextID: () -> String
+    let nextSeed: () -> Int
 
     private enum Interaction {
         case idle
@@ -125,6 +129,7 @@ public final class EditorController {
                 for (_, original) in originals {
                     scene.replace(Transform.translate(original, dx: dx, dy: dy))
                 }
+                if bindingEnabled { Self.updateBoundArrows(in: &scene, skipping: Set(originals.keys)) }
             }
         case let .boxSelecting(origin):
             selectionRect = Self.bbox(origin, event.scenePoint)
@@ -137,6 +142,7 @@ public final class EditorController {
                 for (_, original) in originals {
                     scene.replace(Transform.scale(original, from: bounds, to: newBounds))
                 }
+                if bindingEnabled { Self.updateBoundArrows(in: &scene, skipping: Set(originals.keys)) }
             }
         case let .rotating(center, originals):
             let angle = Transform.rotationAngle(center: center, pointer: event.scenePoint, snap: event.shift)
@@ -346,8 +352,73 @@ public final class EditorController {
             }
             selectedIDs = []
         } else {
+            if bindingEnabled { bindArrowEndpoints(id) }
             store.commit()
             if !toolLocked { activeTool = .selection }
+        }
+    }
+
+    /// If the element is an arrow, bind its endpoints to nearby bindable shapes.
+    private func bindArrowEndpoints(_ id: String) {
+        store.modifyScene { scene in
+            guard var arrow = scene.element(id: id),
+                  case var .arrow(props) = arrow.kind,
+                  let first = props.points.first, let last = props.points.last else { return }
+            let startGlobal = Point(arrow.base.x + first.x, arrow.base.y + first.y)
+            let endGlobal = Point(arrow.base.x + last.x, arrow.base.y + last.y)
+            let others = scene.visibleElements
+
+            if let target = Binding.bindableElement(at: startGlobal, in: others, excluding: [id]) {
+                let bounds = ElementGeometry.bounds(target)
+                props.startBinding = FixedPointBinding(
+                    elementId: target.id, fixedPoint: Binding.fixedPoint(for: startGlobal, in: bounds), mode: .orbit
+                )
+                Self.addBoundArrow(arrowID: id, to: target.id, in: &scene)
+            }
+            if let target = Binding.bindableElement(at: endGlobal, in: others, excluding: [id]) {
+                let bounds = ElementGeometry.bounds(target)
+                props.endBinding = FixedPointBinding(
+                    elementId: target.id, fixedPoint: Binding.fixedPoint(for: endGlobal, in: bounds), mode: .orbit
+                )
+                Self.addBoundArrow(arrowID: id, to: target.id, in: &scene)
+            }
+            arrow.kind = .arrow(props)
+            scene.replace(arrow)
+        }
+    }
+
+    private static func addBoundArrow(arrowID: String, to targetID: String, in scene: inout Scene) {
+        guard var target = scene.element(id: targetID) else { return }
+        var bound = target.base.boundElements ?? []
+        guard !bound.contains(where: { $0.id == arrowID }) else { return }
+        bound.append(BoundElement(id: arrowID, type: .arrow))
+        target.base.boundElements = bound
+        scene.replace(target)
+    }
+
+    /// Recompute the endpoints of bound arrows from their targets' current
+    /// bounds, skipping arrows that are themselves being dragged.
+    static func updateBoundArrows(in scene: inout Scene, skipping: Set<String>) {
+        for element in scene.elements where !element.base.isDeleted && !skipping.contains(element.id) {
+            guard case var .arrow(props) = element.kind,
+                  let first = props.points.first, let last = props.points.last,
+                  props.startBinding != nil || props.endBinding != nil else { continue }
+            var startGlobal = Point(element.base.x + first.x, element.base.y + first.y)
+            var endGlobal = Point(element.base.x + last.x, element.base.y + last.y)
+            if let binding = props.startBinding, let target = scene.element(id: binding.elementId) {
+                startGlobal = Binding.point(forFixedPoint: binding.fixedPoint, in: ElementGeometry.bounds(target))
+            }
+            if let binding = props.endBinding, let target = scene.element(id: binding.elementId) {
+                endGlobal = Binding.point(forFixedPoint: binding.fixedPoint, in: ElementGeometry.bounds(target))
+            }
+            var arrow = element
+            arrow.base.x = startGlobal.x
+            arrow.base.y = startGlobal.y
+            props.points = [Point(0, 0), Point(endGlobal.x - startGlobal.x, endGlobal.y - startGlobal.y)]
+            arrow.base.width = abs(endGlobal.x - startGlobal.x)
+            arrow.base.height = abs(endGlobal.y - startGlobal.y)
+            arrow.kind = .arrow(props)
+            scene.replace(arrow)
         }
     }
 
@@ -463,132 +534,6 @@ public final class EditorController {
 
     public func setLocked(_ locked: Bool) {
         updateSelected { $0.base.locked = locked }
-    }
-
-    // MARK: Copy / paste
-
-    /// Serialize the selection as an `.excalidraw` payload for the pasteboard.
-    public func copyData() -> Data? {
-        let elements = selectedElements
-        guard !elements.isEmpty else { return nil }
-        return try? ExcalidrawFile(elements: elements, files: filesFor(elements)).jsonData()
-    }
-
-    /// Paste elements from an `.excalidraw` payload, offset and re-id'd, and
-    /// select them.
-    public func paste(_ data: Data, offset: Double = 10) {
-        guard let file = try? ExcalidrawFile.decode(from: data), !file.elements.isEmpty else { return }
-        var newIDs: [String] = []
-        store.transaction { scene in
-            for element in file.elements {
-                var copy = element
-                copy.base.id = nextID()
-                copy.base.x += offset
-                copy.base.y += offset
-                scene.add(copy)
-                newIDs.append(copy.id)
-            }
-            for (id, file) in file.files {
-                scene.files[id] = file
-            }
-        }
-        selectedIDs = Set(newIDs)
-    }
-
-    // MARK: Text & image creation
-
-    /// Create an empty text element at `point` and select it. Returns its id so
-    /// the UI can drive on-canvas editing; commit happens via `setText`.
-    @discardableResult
-    public func createText(at point: Point, fontSize: Double = 20) -> String {
-        let base = currentItem.makeBase(id: nextID(), seed: nextSeed(), x: point.x, y: point.y)
-        let props = TextProperties(fontSize: fontSize, text: "", originalText: "")
-        let element = ExcalidrawElement(base: base, kind: .text(props))
-        store.modifyScene { $0.add(element) }
-        selectedIDs = [element.id]
-        return element.id
-    }
-
-    /// Set a text element's content (committing one undo step), or remove it if
-    /// the text is empty.
-    public func setText(id: String, _ text: String) {
-        guard let element = scene.element(id: id), case var .text(props) = element.kind else { return }
-        if text.isEmpty {
-            store.modifyScene { scene in
-                scene = Scene(
-                    elements: scene.elements.filter { $0.id != id },
-                    appState: scene.appState, files: scene.files
-                )
-            }
-            store.commit()
-            selectedIDs.remove(id)
-            return
-        }
-        store.transaction { scene in
-            var e = element
-            props.text = text
-            props.originalText = text
-            // Rough width/height estimate until full Core Text measurement (Phase 5).
-            let lines = text.components(separatedBy: "\n")
-            e.base.width = Double(lines.map(\.count).max() ?? 0) * props.fontSize * 0.6
-            e.base.height = Double(lines.count) * props.fontSize * props.lineHeight
-            e.kind = .text(props)
-            scene.replace(e)
-        }
-    }
-
-    /// Insert an image element backed by a stored file, and select it.
-    @discardableResult
-    public func insertImage(
-        dataURL: String, mimeType: String, at point: Point, width: Double, height: Double, created: Int = 0
-    ) -> String {
-        let fileId = nextID()
-        let base = {
-            var b = currentItem.makeBase(id: nextID(), seed: nextSeed(), x: point.x, y: point.y)
-            b.width = width
-            b.height = height
-            b.backgroundColor = "transparent"
-            return b
-        }()
-        let element = ExcalidrawElement(base: base, kind: .image(ImageProperties(fileId: fileId, status: .saved)))
-        store.transaction { scene in
-            scene.files[fileId] = BinaryFileData(mimeType: mimeType, id: fileId, dataURL: dataURL, created: created)
-            scene.add(element)
-        }
-        selectedIDs = [element.id]
-        return element.id
-    }
-
-    /// Stamp a library item (a group of elements) onto the canvas with its
-    /// top-left at `point`, re-id'd, and select it.
-    @discardableResult
-    public func insertLibraryItem(_ elements: [ExcalidrawElement], at point: Point) -> [String] {
-        guard let bounds = ElementGeometry.commonBounds(elements.filter { !$0.base.isDeleted }) else { return [] }
-        let dx = point.x - bounds.minX
-        let dy = point.y - bounds.minY
-        var newIDs: [String] = []
-        store.transaction { scene in
-            for element in elements where !element.base.isDeleted {
-                var copy = element
-                copy.base.id = nextID()
-                copy.base.x += dx
-                copy.base.y += dy
-                scene.add(copy)
-                newIDs.append(copy.id)
-            }
-        }
-        selectedIDs = Set(newIDs)
-        return newIDs
-    }
-
-    private func filesFor(_ elements: [ExcalidrawElement]) -> [String: BinaryFileData] {
-        var result: [String: BinaryFileData] = [:]
-        for element in elements {
-            if case let .image(image) = element.kind, let fileId = image.fileId, let file = scene.files[fileId] {
-                result[fileId] = file
-            }
-        }
-        return result
     }
 
     // MARK: Z-order

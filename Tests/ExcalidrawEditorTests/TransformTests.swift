@@ -52,7 +52,7 @@ final class TransformTests: XCTestCase {
     }
 
     func testScaleLinearPoints() {
-        var b = BaseProperties(id: "l")
+        let b = BaseProperties(id: "l")
         let line = LinearProperties(points: [Point(0, 0), Point(10, 5)])
         let e = Transform.scale(
             ExcalidrawElement(base: b, kind: .line(line)),

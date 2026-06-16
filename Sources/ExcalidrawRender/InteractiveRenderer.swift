@@ -10,6 +10,8 @@ import Foundation
 public enum InteractiveRenderer {
     private static let accent = CGColor(red: 0.42, green: 0.51, blue: 0.96, alpha: 1) // Excalidraw violet
 
+    private static let snapColor = CGColor(red: 0.91, green: 0.30, blue: 0.24, alpha: 0.9) // red guide
+
     public static func render(
         selectionBounds: BoundingBox?,
         handles: [Point],
@@ -17,6 +19,9 @@ public enum InteractiveRenderer {
         selectionRect: BoundingBox?,
         in ctx: CGContext,
         viewport: Viewport,
+        size: CGSize = .zero,
+        snapLinesX: [Double] = [],
+        snapLinesY: [Double] = [],
         handleSizePx: Double = 8
     ) {
         ctx.saveGState()
@@ -26,6 +31,23 @@ public enum InteractiveRenderer {
 
         let lineWidth = 1 / viewport.zoom
         let handleSize = handleSizePx / viewport.zoom
+
+        // Snap guide lines spanning the visible canvas.
+        if !snapLinesX.isEmpty || !snapLinesY.isEmpty, size != .zero {
+            let topLeft = viewport.viewToScene(Point(0, 0))
+            let bottomRight = viewport.viewToScene(Point(size.width, size.height))
+            ctx.setStrokeColor(snapColor)
+            ctx.setLineWidth(lineWidth)
+            for x in snapLinesX {
+                ctx.move(to: CGPoint(x: x, y: topLeft.y))
+                ctx.addLine(to: CGPoint(x: x, y: bottomRight.y))
+            }
+            for y in snapLinesY {
+                ctx.move(to: CGPoint(x: topLeft.x, y: y))
+                ctx.addLine(to: CGPoint(x: bottomRight.x, y: y))
+            }
+            ctx.strokePath()
+        }
 
         if let rect = selectionRect {
             ctx.setStrokeColor(accent)

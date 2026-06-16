@@ -16,6 +16,24 @@ A native iOS (iPhone + iPad) port of [Excalidraw](https://excalidraw.com) in Swi
 - **[docs/PLAN.md](docs/PLAN.md)** — architecture, Swift package structure, key design decisions, testing strategy, risks.
 - **[docs/ROADMAP.md](docs/ROADMAP.md)** — phased delivery plan (Phase 0 foundations → Phase 8 collaboration).
 
+## Building
+
+The iOS app's `ExcalidrawSwift.xcodeproj` is generated from `project.yml` by
+[XcodeGen](https://github.com/yonsm/XcodeGen) and is **gitignored** — it is
+derived from the SwiftPM package. Regenerate it after cloning or after any
+package change:
+
+```sh
+brew install xcodegen        # once
+./scripts/generate.sh        # regenerate ExcalidrawSwift.xcodeproj
+open ExcalidrawSwift.xcodeproj
+```
+
+If Xcode reports **"Missing package product"**, the project is stale — rerun
+`./scripts/generate.sh`, then close/reopen the project (or File ▸ Packages ▸
+Reset Package Caches). The libraries build and test without Xcode via
+`swift build` / `swift test`.
+
 ## Architecture at a glance
 Layered, framework-light core (pure Swift, simulator-independent) under a thin SwiftUI shell:
 

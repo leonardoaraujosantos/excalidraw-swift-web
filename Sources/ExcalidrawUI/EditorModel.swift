@@ -35,6 +35,9 @@ public final class EditorModel: ObservableObject {
     @Published public var theme: Theme = .light
     @Published public var zenMode = false
     @Published public var showCommandPalette = false
+    @Published public var snapEnabled = false {
+        didSet { controller.snapEnabled = snapEnabled }
+    }
 
     public func toggleTheme() {
         theme = theme == .light ? .dark : .light; revision += 1
@@ -44,8 +47,19 @@ public final class EditorModel: ObservableObject {
         zenMode.toggle()
     }
 
+    public func toggleSnap() {
+        snapEnabled.toggle()
+        revision += 1
+    }
+
     public var zoomPercent: Int {
         Int((viewport.zoom * 100).rounded())
+    }
+
+    /// A short stats string for the current selection (size in points).
+    public var selectionStats: String? {
+        guard let bounds = controller.selectionBounds else { return nil }
+        return "\(Int(bounds.width.rounded())) × \(Int(bounds.height.rounded()))"
     }
 
     public init(scene: ExcalidrawModel.Scene = ExcalidrawModel.Scene(), viewport: Viewport = Viewport()) {

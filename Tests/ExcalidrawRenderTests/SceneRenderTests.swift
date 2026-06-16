@@ -133,7 +133,7 @@ final class SceneRenderTests: XCTestCase {
     }
 
     func testRendersArrowWithHead() {
-        var b = base("a", x: 10, y: 10, w: 100, h: 0)
+        let b = base("a", x: 10, y: 10, w: 100, h: 0)
         let arrow = ArrowProperties(points: [Point(0, 0), Point(100, 0)], endArrowhead: .triangle)
         let scene = Scene(elements: [ExcalidrawElement(base: b, kind: .arrow(arrow))])
         _ = b

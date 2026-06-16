@@ -103,7 +103,9 @@ public struct EditorView: View {
                         handles: handles.filter { $0.key != .rotation }.map(\.value),
                         rotationHandle: handles[.rotation],
                         selectionRect: model.controller.selectionRect,
-                        in: cg, viewport: model.viewport
+                        in: cg, viewport: model.viewport, size: size,
+                        snapLinesX: model.controller.snapLinesX,
+                        snapLinesY: model.controller.snapLinesY
                     )
                 }
             }
@@ -198,7 +200,13 @@ public struct EditorView: View {
                 .accessibilityIdentifier("zoom-in")
             Button { model.zoomToFit() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
                 .accessibilityIdentifier("zoom-fit")
+            if let stats = model.selectionStats {
+                Text(stats).monospacedDigit().foregroundStyle(.secondary).accessibilityIdentifier("stats")
+            }
             Spacer()
+            Button { model.toggleSnap() } label: {
+                Image(systemName: model.snapEnabled ? "ruler.fill" : "ruler")
+            }.accessibilityIdentifier("snap-toggle")
             Button { model.showCommandPalette = true } label: { Image(systemName: "command") }
                 .accessibilityIdentifier("command-palette")
             Button { model.toggleTheme() } label: {
