@@ -229,7 +229,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ai.cyberdyne.excalidraw.app.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.cyberdynecorp.excalidraw.app.uitests;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -254,7 +254,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ai.cyberdyne.excalidraw.app;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.cyberdynecorp.excalidraw.app;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 5.0;
@@ -391,7 +391,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ai.cyberdyne.excalidraw.app.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.cyberdynecorp.excalidraw.app.uitests;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -416,7 +416,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ai.cyberdyne.excalidraw.app;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.cyberdynecorp.excalidraw.app;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 5.0;
