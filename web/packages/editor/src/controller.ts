@@ -48,6 +48,7 @@ type Interaction =
   | { kind: "erasing" }
   | { kind: "moving"; origin: Point; originals: Originals }
   | { kind: "boxSelecting"; origin: Point }
+  | { kind: "draggingLinearPoint"; id: string; index: number }
   | { kind: "resizing"; handle: TransformHandle; bounds: BoundingBox; originals: Originals }
   | { kind: "rotating"; center: Point; originals: Originals };
 
@@ -71,6 +72,8 @@ export class EditorController {
   bindingEnabled = true;
   snapLinesX: number[] = [];
   snapLinesY: number[] = [];
+  /** The line/arrow currently in point-edit mode (`null` when not editing). */
+  editingLinearID: string | null = null;
 
   private interaction: Interaction = { kind: "idle" };
   private readonly nextID: () => string;
@@ -106,7 +109,9 @@ export class EditorController {
   /** Handle positions for the current selection (empty unless the selection tool is active). */
   transformHandles(): Map<TransformHandle, Point> {
     const bounds = this.selectionBounds;
-    if (this.activeTool !== "selection" || bounds === null) return new Map();
+    if (this.editingLinearID !== null || this.activeTool !== "selection" || bounds === null) {
+      return new Map();
+    }
     return Transform.handlePositions(bounds, this.rotationOffset);
   }
 
@@ -114,6 +119,7 @@ export class EditorController {
 
   pointerDown(e: PointerEvent): void {
     this.selectionRect = null;
+    if (this.editingLinearID !== null && this.handleLinearEditDown(e)) return;
     if (this.activeTool === "eraser") {
       this.interaction = { kind: "erasing" };
       this.eraseAt(e.scenePoint);
@@ -134,6 +140,9 @@ export class EditorController {
         break;
       case "freehand":
         this.appendFreehandPoint(i.id, i.origin, e.scenePoint, e.pressure);
+        break;
+      case "draggingLinearPoint":
+        this.moveLinearPoint(i.id, i.index, e.scenePoint);
         break;
       case "erasing":
         this.eraseAt(e.scenePoint);
@@ -189,6 +198,9 @@ export class EditorController {
       case "freehand":
         this.finishFreehand();
         break;
+      case "draggingLinearPoint":
+        this.store.commit();
+        break;
       case "erasing":
         this.store.commit();
         this.selectedIDs = new Set();
@@ -225,6 +237,82 @@ export class EditorController {
 
   setTool(tool: Tool): void {
     this.activeTool = tool;
+    this.exitLinearEdit();
+  }
+
+  // MARK: Linear point editing
+
+  /** Enter point-edit mode for the line/arrow hit at `point`. */
+  beginLinearEdit(point: Point): boolean {
+    const threshold = this.handleHitRadius("mouse");
+    const visible = this.scene.visibleElements;
+    for (let k = visible.length - 1; k >= 0; k--) {
+      const el = visible[k]!;
+      if (!el.locked && linearPointsOf(el) !== null && hit(el, point, threshold)) {
+        this.editingLinearID = el.id;
+        this.selectedIDs = new Set([el.id]);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  exitLinearEdit(): void {
+    this.editingLinearID = null;
+  }
+
+  /** Global vertex + midpoint positions for the line being edited (for the overlay). */
+  linearEditHandles(): { points: Point[]; midpoints: Point[] } | null {
+    const id = this.editingLinearID;
+    if (id === null) return null;
+    const el = this.scene.element(id);
+    const pts = el === undefined ? null : linearPointsOf(el);
+    if (el === undefined || pts === null) return null;
+    const points = pts.map((p) => new Point(el.x + p[0], el.y + p[1]));
+    const midpoints: Point[] = [];
+    for (let i = 0; i < points.length - 1; i++) midpoints.push(points[i]!.midpoint(points[i + 1]!));
+    return { points, midpoints };
+  }
+
+  private handleLinearEditDown(e: PointerEvent): boolean {
+    const id = this.editingLinearID;
+    if (id === null) return false;
+    const el = this.scene.element(id);
+    const pts = el === undefined ? null : linearPointsOf(el);
+    if (el === undefined || pts === null) {
+      this.exitLinearEdit();
+      return false;
+    }
+    const threshold = this.handleHitRadius(e.type);
+    for (let i = 0; i < pts.length; i++) {
+      const global = new Point(el.x + pts[i]![0], el.y + pts[i]![1]);
+      if (global.distance(e.scenePoint) <= threshold) {
+        this.interaction = { kind: "draggingLinearPoint", id, index: i };
+        return true;
+      }
+    }
+    for (let i = 0; i < Math.max(0, pts.length - 1); i++) {
+      const a = new Point(el.x + pts[i]![0], el.y + pts[i]![1]);
+      const b = new Point(el.x + pts[i + 1]![0], el.y + pts[i + 1]![1]);
+      if (a.midpoint(b).distance(e.scenePoint) <= threshold) {
+        const next: LocalPoint[] = [...pts];
+        next.splice(i + 1, 0, [e.scenePoint.x - el.x, e.scenePoint.y - el.y]);
+        this.store.modifyScene((scene) => scene.replace(setLinearPoints(next, el)));
+        this.interaction = { kind: "draggingLinearPoint", id, index: i + 1 };
+        return true;
+      }
+    }
+    this.exitLinearEdit();
+    return false;
+  }
+
+  private moveLinearPoint(id: string, index: number, point: Point): void {
+    const el = this.scene.element(id);
+    const pts = el === undefined ? null : linearPointsOf(el);
+    if (el === undefined || pts === null || index < 0 || index >= pts.length) return;
+    const next: LocalPoint[] = [...pts];
+    next[index] = [point.x - el.x, point.y - el.y];
+    this.store.modifyScene((scene) => scene.replace(setLinearPoints(next, el)));
   }
 
   selectAll(): void {
@@ -1242,6 +1330,24 @@ function roundnessType(type: string): number | null {
   if (type === "line" || type === "arrow") return RoundnessType.proportionalRadius;
   if (type === "rectangle" || type === "diamond") return RoundnessType.adaptiveRadius;
   return null;
+}
+
+/** The relative points of a line/arrow, or null for other element types. */
+function linearPointsOf(el: ExcalidrawElement): LocalPoint[] | null {
+  return el.type === "line" || el.type === "arrow" ? el.points : null;
+}
+
+/** Replace a line/arrow's points, recomputing its width/height. */
+function setLinearPoints(points: LocalPoint[], el: ExcalidrawElement): ExcalidrawElement {
+  if (el.type !== "line" && el.type !== "arrow") return el;
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return {
+    ...el,
+    points,
+    width: (xs.length === 0 ? 0 : Math.max(...xs)) - (xs.length === 0 ? 0 : Math.min(...xs)),
+    height: (ys.length === 0 ? 0 : Math.max(...ys)) - (ys.length === 0 ? 0 : Math.min(...ys)),
+  };
 }
 
 /** Register `arrowID` in `targetID`'s boundElements (no duplicates). */

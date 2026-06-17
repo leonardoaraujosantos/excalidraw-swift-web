@@ -89,3 +89,8 @@ pnpm lint          # biome
     `boundElements`, and re-route bound arrows when their targets move/resize.
     3 tests ported from BindingTests. Still to port: elbow arrows, linear point
     edit, image-crop drag, flowchart spawning.
+  - **T4 slice 6:** linear point editing — double-tap/`beginLinearEdit` a
+    line/arrow, drag vertices, insert points by dragging midpoints, exit on
+    tool change / click-away; suppresses box-transform handles. 6 tests ported
+    from LinearEditTests. Still to port: elbow arrows, image-crop drag,
+    flowchart spawning.

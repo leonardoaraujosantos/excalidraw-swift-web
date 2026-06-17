@@ -7,6 +7,7 @@ export {
   pointerEvent,
 } from "./pointer-event.js";
 export { MIN_SIZE, Transform, type TransformHandle } from "./transform.js";
+export { isPolylineShape } from "@xs/geometry";
 export { type Alignment, EditorController, type ZOrder } from "./controller.js";
 export { parseMermaid } from "./mermaid.js";
 export type { RecognizedShape } from "@xs/geometry";
