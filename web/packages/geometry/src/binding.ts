@@ -1,5 +1,5 @@
-import { Point } from "@xs/math";
-import type { ExcalidrawElement } from "@xs/model";
+import { Point } from "@cyberdynecorpai/math";
+import type { ExcalidrawElement } from "@cyberdynecorpai/model";
 import { BoundingBox } from "./bounding-box.js";
 import { bounds } from "./element-geometry.js";
 

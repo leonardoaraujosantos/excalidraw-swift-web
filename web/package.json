@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
     "lint": "biome check .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "build:libs": "pnpm -r --filter \"./packages/*\" --filter \"./server\" run build",
+    "publish:libs": "pnpm -r --filter \"./packages/*\" --filter \"./server\" publish --access public"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

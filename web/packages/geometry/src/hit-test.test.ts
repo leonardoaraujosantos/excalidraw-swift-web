@@ -1,4 +1,4 @@
-import { Point } from "@xs/math";
+import { Point } from "@cyberdynecorpai/math";
 import { describe, expect, it } from "vitest";
 import { distanceToElement, hit, isPointInside, shouldTestInside } from "./hit-test.js";
 import { arrowEl, freedrawEl, imageEl, rectEl, shapeEl, textEl } from "./test-helpers.js";

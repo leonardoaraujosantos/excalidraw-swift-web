@@ -1,28 +1,46 @@
 {
-  "name": "@xs/svelte",
-  "version": "0.0.0",
-  "description": "Reactive editor store + Svelte 5 bridge over @xs/editor and @xs/render.",
+  "name": "@cyberdynecorpai/svelte",
+  "version": "0.1.0",
+  "description": "Reactive editor store + Svelte 5 bridge over @cyberdynecorpai/editor and @cyberdynecorpai/render.",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@xs/editor": "workspace:*",
-    "@xs/geometry": "workspace:*",
-    "@xs/math": "workspace:*",
-    "@xs/model": "workspace:*",
-    "@xs/protocol": "workspace:*",
-    "@xs/render": "workspace:*"
+    "@cyberdynecorpai/editor": "workspace:*",
+    "@cyberdynecorpai/geometry": "workspace:*",
+    "@cyberdynecorpai/math": "workspace:*",
+    "@cyberdynecorpai/model": "workspace:*",
+    "@cyberdynecorpai/protocol": "workspace:*",
+    "@cyberdynecorpai/render": "workspace:*"
   },
   "devDependencies": {
     "@types/ws": "^8.5.13",
-    "@xs/server": "workspace:*",
+    "@cyberdynecorpai/server": "workspace:*",
     "typescript": "^5.7.2",
     "ws": "^8.18.0"
+  },
+  "license": "MIT",
+  "author": "Cyberdyne Corp AI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leonardoaraujosantos/excalidraw-swift.git",
+    "directory": "web/packages/svelte"
+  },
+  "homepage": "https://github.com/leonardoaraujosantos/excalidraw-swift#readme",
+  "module": "./dist/index.js",
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -1,5 +1,5 @@
-import { type ExcalidrawElement, defaultBase } from "@xs/model";
-import { type Message, type Peer, decode, encode, message } from "@xs/protocol";
+import { type ExcalidrawElement, defaultBase } from "@cyberdynecorpai/model";
+import { type Message, type Peer, decode, encode, message } from "@cyberdynecorpai/protocol";
 import { describe, expect, it } from "vitest";
 import { CollabSession, type CollabSocket, reconnectingSocket } from "./collab-session.js";
 

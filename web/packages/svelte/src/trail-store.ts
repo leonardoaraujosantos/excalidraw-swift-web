@@ -1,4 +1,4 @@
-import type { Point } from "@xs/math";
+import type { Point } from "@cyberdynecorpai/math";
 
 export interface TrailDot {
   position: Point;

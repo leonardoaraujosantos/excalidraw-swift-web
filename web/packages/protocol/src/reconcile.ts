@@ -1,4 +1,4 @@
-import type { ExcalidrawElement } from "@xs/model";
+import type { ExcalidrawElement } from "@cyberdynecorpai/model";
 
 /**
  * Decide whether a `remote` element should replace the `local` one with the

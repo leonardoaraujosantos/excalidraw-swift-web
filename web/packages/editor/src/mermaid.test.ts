@@ -1,4 +1,4 @@
-import { Point } from "@xs/math";
+import { Point } from "@cyberdynecorpai/math";
 import { describe, expect, it } from "vitest";
 import { EditorController } from "./controller.js";
 import { parseMermaid } from "./mermaid.js";

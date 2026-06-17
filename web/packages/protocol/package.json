@@ -1,21 +1,38 @@
 {
-  "name": "@xs/protocol",
-  "version": "0.0.0",
+  "name": "@cyberdynecorpai/protocol",
+  "version": "0.1.0",
   "description": "Collaboration wire schema + version/versionNonce reconciliation for the WebSocket relay — shared by the web and Swift clients.",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@xs/model": "workspace:*"
+    "@cyberdynecorpai/model": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.2"
+  },
+  "license": "MIT",
+  "author": "Cyberdyne Corp AI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leonardoaraujosantos/excalidraw-swift.git",
+    "directory": "web/packages/protocol"
+  },
+  "homepage": "https://github.com/leonardoaraujosantos/excalidraw-swift#readme",
+  "module": "./dist/index.js",
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
   }
 }

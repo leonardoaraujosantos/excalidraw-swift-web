@@ -1,5 +1,5 @@
-import { Point } from "@xs/math";
-import { type ExcalidrawElement, Scene, defaultBase } from "@xs/model";
+import { Point } from "@cyberdynecorpai/math";
+import { type ExcalidrawElement, Scene, defaultBase } from "@cyberdynecorpai/model";
 import { describe, expect, it } from "vitest";
 import { EditorController, type FlowchartDirection } from "./controller.js";
 

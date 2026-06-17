@@ -1,4 +1,4 @@
-import { Point } from "@xs/math";
+import { Point } from "@cyberdynecorpai/math";
 import type { BoundingBox } from "./bounding-box.js";
 
 export const DEFAULT_SNAP_DISTANCE = 8;

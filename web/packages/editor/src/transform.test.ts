@@ -1,6 +1,6 @@
-import { BoundingBox } from "@xs/geometry";
-import { Point } from "@xs/math";
-import { type ExcalidrawElement, defaultBase, defaultTextProps } from "@xs/model";
+import { BoundingBox } from "@cyberdynecorpai/geometry";
+import { Point } from "@cyberdynecorpai/math";
+import { type ExcalidrawElement, defaultBase, defaultTextProps } from "@cyberdynecorpai/model";
 import { describe, expect, it } from "vitest";
 import { MIN_SIZE, Transform } from "./transform.js";
 

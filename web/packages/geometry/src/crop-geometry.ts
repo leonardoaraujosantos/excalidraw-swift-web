@@ -1,4 +1,4 @@
-import type { ImageCrop } from "@xs/model";
+import type { ImageCrop } from "@cyberdynecorpai/model";
 import { BoundingBox } from "./bounding-box.js";
 
 /**

@@ -1,4 +1,4 @@
-import type { ExcalidrawElement } from "@xs/model";
+import type { ExcalidrawElement } from "@cyberdynecorpai/model";
 
 /**
  * Wire protocol version. Carried on `join` and echoed in `room-state` so a peer

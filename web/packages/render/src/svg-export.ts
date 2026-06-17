@@ -1,6 +1,6 @@
-import { commonBounds } from "@xs/geometry";
-import type { ExcalidrawElement, Scene, TextElement } from "@xs/model";
-import { viewBackgroundColor } from "@xs/model";
+import { commonBounds } from "@cyberdynecorpai/geometry";
+import type { ExcalidrawElement, Scene, TextElement } from "@cyberdynecorpai/model";
+import { viewBackgroundColor } from "@cyberdynecorpai/model";
 import { getStroke } from "perfect-freehand";
 import { opsToSvgPath } from "./drawable-path.js";
 import { elementDrawable } from "./element-drawable.js";

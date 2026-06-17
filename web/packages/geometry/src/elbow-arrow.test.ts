@@ -1,4 +1,4 @@
-import { Point } from "@xs/math";
+import { Point } from "@cyberdynecorpai/math";
 import { describe, expect, it } from "vitest";
 import { BoundingBox } from "./bounding-box.js";
 import { ElbowArrow } from "./elbow-arrow.js";

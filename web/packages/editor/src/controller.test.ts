@@ -1,5 +1,5 @@
-import { Point } from "@xs/math";
-import { Scene } from "@xs/model";
+import { Point } from "@cyberdynecorpai/math";
+import { Scene } from "@cyberdynecorpai/model";
 import { describe, expect, it } from "vitest";
 import { pointerEvent } from "./pointer-event.js";
 import { drag, makeEditor, rect } from "./test-helpers.js";

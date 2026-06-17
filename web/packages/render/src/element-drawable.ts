@@ -1,4 +1,4 @@
-import type { ExcalidrawElement, LocalPoint } from "@xs/model";
+import type { ExcalidrawElement, LocalPoint } from "@cyberdynecorpai/model";
 import rough from "roughjs";
 import type { Drawable, Options } from "roughjs/bin/core";
 

@@ -1,5 +1,5 @@
-import { type ExcalidrawElement, defaultBase } from "@xs/model";
-import { type Message, type Peer, message } from "@xs/protocol";
+import { type ExcalidrawElement, defaultBase } from "@cyberdynecorpai/model";
+import { type Message, type Peer, message } from "@cyberdynecorpai/protocol";
 import { describe, expect, it } from "vitest";
 import { type Outbound, RelayCore } from "./relay-core.js";
 

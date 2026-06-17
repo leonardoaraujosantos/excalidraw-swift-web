@@ -1,5 +1,10 @@
-import { Point } from "@xs/math";
-import { type ArrowElement, type ExcalidrawElement, Scene, defaultBase } from "@xs/model";
+import { Point } from "@cyberdynecorpai/math";
+import {
+  type ArrowElement,
+  type ExcalidrawElement,
+  Scene,
+  defaultBase,
+} from "@cyberdynecorpai/model";
 import { describe, expect, it } from "vitest";
 import { EditorController } from "./controller.js";
 import { pointerEvent } from "./pointer-event.js";

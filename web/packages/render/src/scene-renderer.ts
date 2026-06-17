@@ -1,6 +1,12 @@
-import { BoundingBox, cullVisible } from "@xs/geometry";
-import type { Arrowhead, ExcalidrawElement, LocalPoint, Scene, TextElement } from "@xs/model";
-import { viewBackgroundColor } from "@xs/model";
+import { BoundingBox, cullVisible } from "@cyberdynecorpai/geometry";
+import type {
+  Arrowhead,
+  ExcalidrawElement,
+  LocalPoint,
+  Scene,
+  TextElement,
+} from "@cyberdynecorpai/model";
+import { viewBackgroundColor } from "@cyberdynecorpai/model";
 import { getStroke } from "perfect-freehand";
 import { type PathSink, opsToPath } from "./drawable-path.js";
 import { elementDrawable } from "./element-drawable.js";

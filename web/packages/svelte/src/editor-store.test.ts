@@ -1,5 +1,5 @@
-import { Point } from "@xs/math";
-import { Viewport } from "@xs/render";
+import { Point } from "@cyberdynecorpai/math";
+import { Viewport } from "@cyberdynecorpai/render";
 import { describe, expect, it } from "vitest";
 import { EditorStore } from "./editor-store.js";
 

@@ -8,7 +8,7 @@ import {
   type LocalPoint,
   defaultBase,
   defaultTextProps,
-} from "@xs/model";
+} from "@cyberdynecorpai/model";
 
 interface ElOpts {
   x?: number;

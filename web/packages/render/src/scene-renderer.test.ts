@@ -1,4 +1,9 @@
-import { type ExcalidrawElement, Scene, defaultBase, defaultTextProps } from "@xs/model";
+import {
+  type ExcalidrawElement,
+  Scene,
+  defaultBase,
+  defaultTextProps,
+} from "@cyberdynecorpai/model";
 import { describe, expect, it } from "vitest";
 import { type RenderContext, renderScene } from "./scene-renderer.js";
 import { arrow, rect, text } from "./test-helpers.js";

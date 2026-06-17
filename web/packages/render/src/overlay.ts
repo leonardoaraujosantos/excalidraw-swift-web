@@ -1,5 +1,5 @@
-import type { BoundingBox } from "@xs/geometry";
-import type { Point } from "@xs/math";
+import type { BoundingBox } from "@cyberdynecorpai/geometry";
+import type { Point } from "@cyberdynecorpai/math";
 import type { RenderContext } from "./scene-renderer.js";
 import type { Viewport } from "./viewport.js";
 

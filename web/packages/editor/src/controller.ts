@@ -20,8 +20,8 @@ import {
   isFrame,
   snap as objectSnap,
   pointForFixedPoint,
-} from "@xs/geometry";
-import { Point } from "@xs/math";
+} from "@cyberdynecorpai/geometry";
+import { Point } from "@cyberdynecorpai/math";
 import {
   type ArrowElement,
   type BaseProperties,
@@ -39,7 +39,7 @@ import {
   defaultTextProps,
   encodeFile,
   makeFile,
-} from "@xs/model";
+} from "@cyberdynecorpai/model";
 import { type CurrentItem, defaultCurrentItem, makeBase } from "./current-item.js";
 import { parseMermaid } from "./mermaid.js";
 import type { PointerEvent, PointerType } from "./pointer-event.js";

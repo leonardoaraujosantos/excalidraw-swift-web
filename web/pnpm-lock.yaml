@@ -27,31 +27,31 @@ importers:
 
   apps/web:
     dependencies:
-      '@xs/editor':
+      '@cyberdynecorpai/editor':
         specifier: workspace:*
         version: link:../../packages/editor
-      '@xs/math':
+      '@cyberdynecorpai/math':
         specifier: workspace:*
         version: link:../../packages/math
-      '@xs/model':
+      '@cyberdynecorpai/model':
         specifier: workspace:*
         version: link:../../packages/model
-      '@xs/render':
+      '@cyberdynecorpai/render':
         specifier: workspace:*
         version: link:../../packages/render
-      '@xs/svelte':
+      '@cyberdynecorpai/svelte':
         specifier: workspace:*
         version: link:../../packages/svelte
     devDependencies:
+      '@cyberdynecorpai/server':
+        specifier: workspace:*
+        version: link:../../server
       '@playwright/test':
         specifier: ^1.49.1
         version: 1.61.0
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.3
         version: 5.1.1(svelte@5.56.3)(vite@6.4.3(@types/node@22.19.21))
-      '@xs/server':
-        specifier: workspace:*
-        version: link:../../server
       svelte:
         specifier: ^5.19.0
         version: 5.56.3
@@ -67,13 +67,13 @@ importers:
 
   packages/editor:
     dependencies:
-      '@xs/geometry':
+      '@cyberdynecorpai/geometry':
         specifier: workspace:*
         version: link:../geometry
-      '@xs/math':
+      '@cyberdynecorpai/math':
         specifier: workspace:*
         version: link:../math
-      '@xs/model':
+      '@cyberdynecorpai/model':
         specifier: workspace:*
         version: link:../model
     devDependencies:
@@ -83,10 +83,10 @@ importers:
 
   packages/geometry:
     dependencies:
-      '@xs/math':
+      '@cyberdynecorpai/math':
         specifier: workspace:*
         version: link:../math
-      '@xs/model':
+      '@cyberdynecorpai/model':
         specifier: workspace:*
         version: link:../model
     devDependencies:
@@ -108,7 +108,7 @@ importers:
 
   packages/protocol:
     dependencies:
-      '@xs/model':
+      '@cyberdynecorpai/model':
         specifier: workspace:*
         version: link:../model
     devDependencies:
@@ -118,13 +118,13 @@ importers:
 
   packages/render:
     dependencies:
-      '@xs/geometry':
+      '@cyberdynecorpai/geometry':
         specifier: workspace:*
         version: link:../geometry
-      '@xs/math':
+      '@cyberdynecorpai/math':
         specifier: workspace:*
         version: link:../math
-      '@xs/model':
+      '@cyberdynecorpai/model':
         specifier: workspace:*
         version: link:../model
       perfect-freehand:
@@ -140,31 +140,31 @@ importers:
 
   packages/svelte:
     dependencies:
-      '@xs/editor':
+      '@cyberdynecorpai/editor':
         specifier: workspace:*
         version: link:../editor
-      '@xs/geometry':
+      '@cyberdynecorpai/geometry':
         specifier: workspace:*
         version: link:../geometry
-      '@xs/math':
+      '@cyberdynecorpai/math':
         specifier: workspace:*
         version: link:../math
-      '@xs/model':
+      '@cyberdynecorpai/model':
         specifier: workspace:*
         version: link:../model
-      '@xs/protocol':
+      '@cyberdynecorpai/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@xs/render':
+      '@cyberdynecorpai/render':
         specifier: workspace:*
         version: link:../render
     devDependencies:
+      '@cyberdynecorpai/server':
+        specifier: workspace:*
+        version: link:../../server
       '@types/ws':
         specifier: ^8.5.13
         version: 8.18.1
-      '@xs/server':
-        specifier: workspace:*
-        version: link:../../server
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -174,10 +174,10 @@ importers:
 
   server:
     dependencies:
-      '@xs/model':
+      '@cyberdynecorpai/model':
         specifier: workspace:*
         version: link:../packages/model
-      '@xs/protocol':
+      '@cyberdynecorpai/protocol':
         specifier: workspace:*
         version: link:../packages/protocol
       ws:

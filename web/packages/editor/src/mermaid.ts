@@ -1,11 +1,11 @@
-import { BoundingBox, fixedPointFor } from "@xs/geometry";
-import { Point } from "@xs/math";
+import { BoundingBox, fixedPointFor } from "@cyberdynecorpai/geometry";
+import { Point } from "@cyberdynecorpai/math";
 import {
   type ArrowElement,
   type ExcalidrawElement,
   defaultBase,
   defaultTextProps,
-} from "@xs/model";
+} from "@cyberdynecorpai/model";
 
 /**
  * Parses a subset of Mermaid `flowchart`/`graph` syntax into Excalidraw
