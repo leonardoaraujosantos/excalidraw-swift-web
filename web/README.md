@@ -118,5 +118,12 @@ pnpm lint          # biome
   `.excalidraw` document round-trip — 11 tests. `apps/web` is a runnable Vite +
   Svelte 5 example (toolbar, canvas with pointer + wheel pan/zoom, properties,
   actions, generators, zoom, theme, export) — builds clean, `svelte-check` 0
-  errors, exercised in CI. Still to do: laser/eraser trails, on-canvas text
-  editing, command palette, keyboard shortcuts, image import.
+  errors, exercised in CI.
+  - **T5 slice 2:** the **interactive overlay** (`renderOverlay` in `@xs/render`,
+    parity InteractiveRenderer) — selection box, transform handles, rotation
+    handle, dashed marquee, snap guides, linear/elbow/crop edit handles; wired
+    through `EditorStore.renderOverlay` and drawn by the canvas. Plus on-canvas
+    **text editing** (a floating editor placed by the text tool) and
+    **keyboard shortcuts** (tool keys, ⌘Z/⌘⇧Z, ⌘D, ⌘A, Delete). 6 more tests.
+    Still to do: laser/eraser trails, command palette, image import, two-finger
+    gestures.

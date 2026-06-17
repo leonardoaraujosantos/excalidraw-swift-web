@@ -8,6 +8,8 @@ class RecordingContext {
   fillCount = 0;
   strokeCount = 0;
   fillRectCount = 0;
+  strokeRectCount = 0;
+  arcCount = 0;
   fillTextCount = 0;
   fillStyle = "";
   strokeStyle = "";
@@ -34,6 +36,12 @@ class RecordingContext {
   }
   fillRect() {
     this.fillRectCount++;
+  }
+  strokeRect() {
+    this.strokeRectCount++;
+  }
+  arc() {
+    this.arcCount++;
   }
   setLineDash() {}
   fillText() {
@@ -121,6 +129,18 @@ describe("EditorStore", () => {
     store.render(ctx, 400, 300);
     expect(ctx.fillRectCount).toBe(1); // background
     expect(ctx.strokeCount).toBeGreaterThan(0); // the rectangle outline
+  });
+
+  it("draws the interactive overlay for a selection", () => {
+    const store = new EditorStore();
+    store.selectTool("rectangle");
+    store.pointer("down", new Point(0, 0));
+    store.pointer("move", new Point(100, 100));
+    store.pointer("up", new Point(100, 100)); // rectangle stays selected
+    const ctx = new RecordingContext();
+    store.renderOverlay(ctx, 400, 300);
+    expect(ctx.strokeRectCount).toBeGreaterThanOrEqual(5); // selection box + 8 handles
+    expect(ctx.fillRectCount).toBe(8); // white handle squares
   });
 
   it("exports SVG and round-trips a document", () => {

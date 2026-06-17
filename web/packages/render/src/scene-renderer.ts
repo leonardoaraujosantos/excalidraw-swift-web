@@ -18,6 +18,8 @@ export interface RenderContext extends PathSink {
   fill(): void;
   stroke(): void;
   fillRect(x: number, y: number, w: number, h: number): void;
+  strokeRect(x: number, y: number, w: number, h: number): void;
+  arc(x: number, y: number, radius: number, startAngle: number, endAngle: number): void;
   setLineDash(segments: number[]): void;
   fillText(text: string, x: number, y: number): void;
   fillStyle: string;

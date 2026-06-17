@@ -53,7 +53,52 @@
   }
 
   const mermaidSample = "flowchart TD\n  A[Start] --> B{OK?}\n  B -->|Yes| C[Ship]\n  B -->|No| D[Fix]";
+
+  const toolKeys: Record<string, Tool> = {
+    v: "selection",
+    r: "rectangle",
+    d: "diamond",
+    o: "ellipse",
+    a: "arrow",
+    l: "line",
+    p: "freedraw",
+    t: "text",
+    e: "eraser",
+    h: "hand",
+    f: "frame",
+  };
+
+  function onKeydown(e: KeyboardEvent): void {
+    if (store.editingText !== null) return;
+    const target = e.target as HTMLElement | null;
+    if (target !== null && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      if (e.shiftKey) store.redo();
+      else store.undo();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "d") {
+      e.preventDefault();
+      store.duplicate();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      store.selectAll();
+      return;
+    }
+    if (e.key === "Backspace" || e.key === "Delete") {
+      store.deleteSelected();
+      return;
+    }
+    const tool = toolKeys[e.key.toLowerCase()];
+    if (tool !== undefined) store.selectTool(tool);
+  }
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <div class="app" data-theme={store.theme} data-rev={rev}>
   <header class="toolbar">
@@ -84,6 +129,23 @@
 
   <main class="stage">
     <Canvas {store} />
+    {#if store.editingText !== null}
+      <!-- svelte-ignore a11y_autofocus -->
+      <textarea
+        class="text-editor"
+        autofocus
+        style="left:{store.editingText.viewX}px;top:{store.editingText.viewY}px"
+        value={store.editingText.value}
+        oninput={(e) => store.setEditingText((e.currentTarget as HTMLTextAreaElement).value)}
+        onblur={() => store.commitText()}
+        onkeydown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            store.commitText();
+          }
+        }}
+      ></textarea>
+    {/if}
   </main>
 
   <footer class="status">
@@ -108,6 +170,17 @@
   .app[data-theme="dark"] button { background: #2a2a2a; color: #eee; border-color: #fff3; }
   button.active { background: #4263eb; color: #fff; border-color: #4263eb; }
   .stage { position: relative; }
+  .text-editor {
+    position: absolute;
+    min-width: 120px;
+    min-height: 28px;
+    font: 20px system-ui, sans-serif;
+    border: 1px dashed #4263eb;
+    background: transparent;
+    resize: none;
+    outline: none;
+    padding: 0;
+  }
   .sep { width: 1px; align-self: stretch; background: #0002; margin: 0 4px; }
   .grow { flex: 1; }
   label { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; }

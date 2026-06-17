@@ -44,6 +44,8 @@ class RecordingContext implements RenderContext {
   fillRect() {
     this.fillRectCount++;
   }
+  strokeRect() {}
+  arc() {}
   setLineDash() {}
   fillText() {
     this.fillTextCount++;

@@ -19,7 +19,9 @@
     const ctx = canvas.getContext("2d");
     if (ctx === null) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    store.render(ctx as unknown as Parameters<EditorStore["render"]>[0], width, height);
+    const rc = ctx as unknown as Parameters<EditorStore["render"]>[0];
+    store.render(rc, width, height);
+    store.renderOverlay(rc, width, height);
   }
 
   // Redraw whenever the scene revision, theme, or size changes.

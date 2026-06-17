@@ -20,6 +20,7 @@ import {
   type Theme,
   Viewport,
   ZOOM_RANGE,
+  renderOverlay as drawOverlay,
   exportSvg,
   renderScene,
 } from "@xs/render";
@@ -48,6 +49,8 @@ export class EditorStore {
   revision = 0;
   theme: Theme = "light";
   zenMode = false;
+  /** On-canvas text editing state (`null` when not editing). */
+  editingText: { id: string; value: string; viewX: number; viewY: number } | null = null;
   /** Last known canvas size, for zoom-to-fit and generator placement. */
   canvasWidth = 1024;
   canvasHeight = 768;
@@ -88,6 +91,11 @@ export class EditorStore {
   // MARK: Pointer input (view coordinates in)
 
   pointer(phase: PointerPhase, viewPoint: Point, opts: PointerOptions = {}): void {
+    // The text tool taps to place an on-canvas editor instead of dragging.
+    if (this.activeTool === "text" && phase === "down") {
+      this.beginText(viewPoint);
+      return;
+    }
     const scenePoint = this.viewport.viewToScene(viewPoint);
     const event = pointerEvent(scenePoint, phase, {
       type: opts.type,
@@ -261,6 +269,26 @@ export class EditorStore {
     this.bump();
   }
 
+  // MARK: On-canvas text editing
+
+  beginText(viewPoint: Point): void {
+    const id = this.controller.createText(this.viewport.viewToScene(viewPoint));
+    this.editingText = { id, value: "", viewX: viewPoint.x, viewY: viewPoint.y };
+    this.bump();
+  }
+
+  setEditingText(value: string): void {
+    if (this.editingText !== null) this.editingText = { ...this.editingText, value };
+  }
+
+  commitText(): void {
+    if (this.editingText === null) return;
+    this.controller.setText(this.editingText.id, this.editingText.value);
+    this.editingText = null;
+    this.controller.setTool("selection");
+    this.bump();
+  }
+
   // MARK: Theme / zen
 
   setTheme(theme: Theme): void {
@@ -281,6 +309,45 @@ export class EditorStore {
     this.canvasWidth = width;
     this.canvasHeight = height;
     renderScene(ctx, this.scene, { viewport: this.viewport, width, height, theme: this.theme });
+  }
+
+  /** Draw the interactive overlay (selection, handles, marquee, edit handles). */
+  renderOverlay(ctx: RenderContext, width: number, height: number): void {
+    const c = this.controller;
+    const handlesMap = c.transformHandles();
+    const rotationHandle = handlesMap.get("rotation") ?? null;
+    const handles = [...handlesMap].filter(([k]) => k !== "rotation").map(([, p]) => p);
+
+    let linearPoints: Point[] = [];
+    let linearMidpoints: Point[] = [];
+    if (c.editingLinearID !== null) {
+      const el = c.scene.element(c.editingLinearID);
+      if (el?.type === "arrow" && el.elbowed) {
+        linearMidpoints = c.elbowSegmentHandles(c.editingLinearID).map((h) => h.point);
+      } else {
+        const h = c.linearEditHandles();
+        if (h !== null) {
+          linearPoints = h.points;
+          linearMidpoints = h.midpoints;
+        }
+      }
+    }
+
+    drawOverlay(ctx, {
+      viewport: this.viewport,
+      width,
+      height,
+      selectionBounds: c.selectionBounds,
+      handles,
+      rotationHandle,
+      selectionRect: c.selectionRect,
+      snapLinesX: c.snapLinesX,
+      snapLinesY: c.snapLinesY,
+      linearPoints,
+      linearMidpoints,
+      cropFrame: c.cropFrame(),
+      cropHandles: c.cropEditHandles() ?? [],
+    });
   }
 
   exportSvg(): string {
