@@ -164,3 +164,12 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     (arrowhead stroke/fill + bound-text centring) and `editor-store.test.ts`
     (insert-note-edits-text + double-click re-edit), plus the Playwright suite
     now asserts the arrow's `endArrowhead` and types a sticky-note label.
+  - **T6 slice 4:** **rough.js op-set parity** (`@xs/render` `rough-parity.test.ts`)
+    — the TS mirror of Swift's `RoughJSParityTests`. The Swift `RoughKit` is a
+    re-port of rough.js pinned to reference op-sets captured from the real
+    rough.js 4.6.6 at a fixed seed; the TS twin renders with that *same*
+    `roughjs@4.6.6`, so asserting against the *same* constants proves all three
+    agree (rough.js ⇔ Swift `RoughKit` ⇔ TS `@xs/render`) for line, rectangle,
+    ellipse and the filled-rectangle outline (fresh seed, independent of fill),
+    with hachure fill bounded to the same op-count magnitude. Render geometry
+    can't silently drift between the two implementations.
