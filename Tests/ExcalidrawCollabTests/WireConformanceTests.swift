@@ -10,7 +10,7 @@ import XCTest
 final class WireConformanceTests: XCTestCase {
     private static let names = [
         "join", "leave", "room-state", "peer-joined", "peer-left",
-        "presence", "pointer", "element-updates", "scene-snapshot", "ping", "ack",
+        "presence", "pointer", "element-updates", "scene-snapshot", "ping", "ack"
     ]
 
     private func fixture(_ name: String) throws -> String {
@@ -32,7 +32,7 @@ final class WireConformanceTests: XCTestCase {
     }
 
     func testDecodesIntoTheExpectedCases() throws {
-        if case .join(let proto, let room, let peer) = try CollabCodec.decode(fixture("join")) {
+        if case let .join(proto, room, peer) = try CollabCodec.decode(fixture("join")) {
             XCTAssertEqual(proto, protocolVersion)
             XCTAssertEqual(room, "room-1")
             XCTAssertEqual(peer.id, "p1")
@@ -40,7 +40,7 @@ final class WireConformanceTests: XCTestCase {
             XCTFail("join did not decode to .join")
         }
 
-        if case .elementUpdates(let elements) = try CollabCodec.decode(fixture("element-updates")) {
+        if case let .elementUpdates(elements) = try CollabCodec.decode(fixture("element-updates")) {
             XCTAssertEqual(elements.first?.id, "el-1")
             XCTAssertEqual(elements.first?.base.version, 3)
             XCTAssertEqual(elements.first?.base.versionNonce, 42)
@@ -48,7 +48,7 @@ final class WireConformanceTests: XCTestCase {
             XCTFail("element-updates did not decode")
         }
 
-        if case .presence(let peerId, let presence) = try CollabCodec.decode(fixture("presence")) {
+        if case let .presence(peerId, presence) = try CollabCodec.decode(fixture("presence")) {
             XCTAssertEqual(peerId, "p1")
             XCTAssertEqual(presence.pointer?.x, 12.5)
             XCTAssertEqual(presence.selectedIds, ["el-1"])

@@ -51,12 +51,12 @@ final class CollabModelTests: XCTestCase {
         XCTAssertEqual(model.controller.scene.element(id: "x")?.base.width, 99)
     }
 
-    func testReconnectMergeSurvivesLocalEdits() {
+    func testReconnectMergeSurvivesLocalEdits() throws {
         let model = EditorModel()
         var sent: [ExcalidrawElement] = []
         model.attachCollabSink(idPrefix: "me-") { sent.append(contentsOf: $0) }
         draw(model, .rectangle, from: CGPoint(x: 10, y: 10), to: CGPoint(x: 60, y: 40))
-        let localID = model.controller.scene.visibleElements.first { $0.type == "rectangle" }!.id
+        let localID = try XCTUnwrap(model.controller.scene.visibleElements.first { $0.type == "rectangle" }?.id)
 
         sent.removeAll()
         // Reconnect: the room snapshot has a different peer's element, not ours.
@@ -67,7 +67,7 @@ final class CollabModelTests: XCTestCase {
         XCTAssertTrue(sent.contains { $0.id == localID }) // re-broadcast to the room
     }
 
-    func testIdPrefixNamespacesIds() {
+    func testIdPrefixNamespacesIds() throws {
         let alice = EditorModel()
         alice.attachCollabSink(idPrefix: "alice-") { _ in }
         let bob = EditorModel()
@@ -76,8 +76,8 @@ final class CollabModelTests: XCTestCase {
         draw(alice, .rectangle, from: CGPoint(x: 10, y: 10), to: CGPoint(x: 50, y: 50))
         draw(bob, .rectangle, from: CGPoint(x: 10, y: 10), to: CGPoint(x: 50, y: 50))
 
-        let aliceID = alice.controller.scene.visibleElements.first { $0.type == "rectangle" }!.id
-        let bobID = bob.controller.scene.visibleElements.first { $0.type == "rectangle" }!.id
+        let aliceID = try XCTUnwrap(alice.controller.scene.visibleElements.first { $0.type == "rectangle" }?.id)
+        let bobID = try XCTUnwrap(bob.controller.scene.visibleElements.first { $0.type == "rectangle" }?.id)
         XCTAssertNotEqual(aliceID, bobID) // would collide without per-peer prefixes
         XCTAssertTrue(aliceID.hasPrefix("alice-"))
         XCTAssertTrue(bobID.hasPrefix("bob-"))

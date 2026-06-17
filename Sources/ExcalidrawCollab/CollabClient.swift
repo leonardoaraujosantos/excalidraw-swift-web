@@ -84,7 +84,7 @@ public final class CollabClient {
         let delay = min(maxReconnectDelay, 0.25 * pow(2.0, Double(reconnectAttempt - 1)))
         DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, !self.intentionalClose else { return }
-            self.openSocket()
+            openSocket()
         }
     }
 
@@ -118,11 +118,11 @@ public final class CollabClient {
             guard let self else { return }
             switch result {
             case let .success(message):
-                self.reconnectAttempt = 0
-                if case let .string(text) = message { self.handleRaw(text) }
-                self.receiveNext()
+                reconnectAttempt = 0
+                if case let .string(text) = message { handleRaw(text) }
+                receiveNext()
             case .failure:
-                self.scheduleReconnect() // dropped — redial with backoff and rejoin
+                scheduleReconnect() // dropped — redial with backoff and rejoin
             }
         }
     }

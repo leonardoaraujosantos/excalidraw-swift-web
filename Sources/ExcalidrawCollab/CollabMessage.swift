@@ -84,42 +84,42 @@ extension CollabMessage: Codable {
         let type = try c.decode(String.self, forKey: .type)
         switch type {
         case "join":
-            self = .join(
-                protocolVersion: try c.decode(Int.self, forKey: .proto),
-                room: try c.decode(String.self, forKey: .room),
-                peer: try c.decode(Peer.self, forKey: .peer)
+            self = try .join(
+                protocolVersion: c.decode(Int.self, forKey: .proto),
+                room: c.decode(String.self, forKey: .room),
+                peer: c.decode(Peer.self, forKey: .peer)
             )
         case "leave":
-            self = .leave(peerId: try c.decode(String.self, forKey: .peerId))
+            self = try .leave(peerId: c.decode(String.self, forKey: .peerId))
         case "room-state":
-            self = .roomState(
-                protocolVersion: try c.decode(Int.self, forKey: .proto),
-                you: try c.decode(String.self, forKey: .you),
-                peers: try c.decode([Peer].self, forKey: .peers),
-                elements: try c.decode([ExcalidrawElement].self, forKey: .elements)
+            self = try .roomState(
+                protocolVersion: c.decode(Int.self, forKey: .proto),
+                you: c.decode(String.self, forKey: .you),
+                peers: c.decode([Peer].self, forKey: .peers),
+                elements: c.decode([ExcalidrawElement].self, forKey: .elements)
             )
         case "peer-joined":
-            self = .peerJoined(peer: try c.decode(Peer.self, forKey: .peer))
+            self = try .peerJoined(peer: c.decode(Peer.self, forKey: .peer))
         case "peer-left":
-            self = .peerLeft(peerId: try c.decode(String.self, forKey: .peerId))
+            self = try .peerLeft(peerId: c.decode(String.self, forKey: .peerId))
         case "presence":
-            self = .presence(
-                peerId: try c.decode(String.self, forKey: .peerId),
-                presence: try c.decode(Presence.self, forKey: .presence)
+            self = try .presence(
+                peerId: c.decode(String.self, forKey: .peerId),
+                presence: c.decode(Presence.self, forKey: .presence)
             )
         case "pointer":
-            self = .pointer(
-                peerId: try c.decode(String.self, forKey: .peerId),
-                pointer: try c.decode(PointerPos.self, forKey: .pointer)
+            self = try .pointer(
+                peerId: c.decode(String.self, forKey: .peerId),
+                pointer: c.decode(PointerPos.self, forKey: .pointer)
             )
         case "element-updates":
-            self = .elementUpdates(elements: try c.decode([ExcalidrawElement].self, forKey: .elements))
+            self = try .elementUpdates(elements: c.decode([ExcalidrawElement].self, forKey: .elements))
         case "scene-snapshot":
-            self = .sceneSnapshot(elements: try c.decode([ExcalidrawElement].self, forKey: .elements))
+            self = try .sceneSnapshot(elements: c.decode([ExcalidrawElement].self, forKey: .elements))
         case "ping":
-            self = .ping(t: try c.decode(Int.self, forKey: .t))
+            self = try .ping(t: c.decode(Int.self, forKey: .t))
         case "ack":
-            self = .ack(t: try c.decode(Int.self, forKey: .t))
+            self = try .ack(t: c.decode(Int.self, forKey: .t))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type, in: c, debugDescription: "unknown message type: \(type)"
@@ -181,7 +181,8 @@ public enum CollabCodec {
     public static func encode(_ message: CollabMessage) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return String(decoding: try encoder.encode(message), as: UTF8.self)
+        let data = try encoder.encode(message)
+        return String(bytes: data, encoding: .utf8) ?? ""
     }
 
     public static func decode(_ json: String) throws -> CollabMessage {

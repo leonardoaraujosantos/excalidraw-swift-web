@@ -24,7 +24,9 @@ public enum Reconcile {
         local: [ExcalidrawElement], remote: [ExcalidrawElement]
     ) -> [ExcalidrawElement] {
         var remoteById: [String: ExcalidrawElement] = [:]
-        for element in remote { remoteById[element.id] = element }
+        for element in remote {
+            remoteById[element.id] = element
+        }
 
         var seen = Set<String>()
         var merged: [ExcalidrawElement] = []
@@ -48,7 +50,9 @@ public enum Reconcile {
         local: [ExcalidrawElement], remote: [ExcalidrawElement]
     ) -> [ExcalidrawElement] {
         var localById: [String: ExcalidrawElement] = [:]
-        for element in local { localById[element.id] = element }
+        for element in local {
+            localById[element.id] = element
+        }
         return remote.filter { remoteElement in
             guard let localElement = localById[remoteElement.id] else { return true }
             return preferRemote(local: localElement, remote: remoteElement)

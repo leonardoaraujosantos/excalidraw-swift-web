@@ -59,7 +59,9 @@ public extension EditorModel {
         let merged = Reconcile.reconcileElements(local: controller.scene.elements, remote: elements)
         controller.applyElements(merged)
         lastBroadcast.removeAll()
-        for element in elements { lastBroadcast[element.id] = element.base.version }
+        for element in elements {
+            lastBroadcast[element.id] = element.base.version
+        }
         revision += 1 // didSet → broadcastLocalChanges → publishes local-only/newer
     }
 
@@ -75,7 +77,9 @@ public extension EditorModel {
     /// Mark every current element as already broadcast (after applying remote).
     func syncBroadcastBaseline() {
         lastBroadcast.removeAll()
-        for element in controller.scene.elements { lastBroadcast[element.id] = element.base.version }
+        for element in controller.scene.elements {
+            lastBroadcast[element.id] = element.base.version
+        }
     }
 
     /// Send elements whose version changed since the last broadcast.
