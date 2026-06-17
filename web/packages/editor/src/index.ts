@@ -8,3 +8,4 @@ export {
 } from "./pointer-event.js";
 export { MIN_SIZE, Transform, type TransformHandle } from "./transform.js";
 export { type Alignment, EditorController, type ZOrder } from "./controller.js";
+export { parseMermaid } from "./mermaid.js";

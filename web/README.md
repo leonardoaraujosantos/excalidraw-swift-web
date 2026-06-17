@@ -72,3 +72,9 @@ pnpm lint          # biome
     23 more tests (ported from StickyNote/Table/Chart/ElementLink/CopyPaste).
     Still to port: arrow binding, elbow arrows, linear point edit, image crop,
     Mermaid parser, shape recognition, flowchart spawning.
+  - **T4 slice 3:** Mermaid flowchart parser (`parseMermaid` + `insertMermaid`)
+    — node shapes `[rect] (rounded) {diamond} ((circle)) ([stadium])`, edges
+    `--> --- -.-> ==>` with `|labels|`, longest-path layering by direction,
+    bound-text labels + bound arrows. 7 tests ported from MermaidParserTests.
+    Still to port: arrow binding, elbow arrows, linear point edit, image crop,
+    shape recognition, flowchart spawning.

@@ -27,6 +27,7 @@ import {
   makeFile,
 } from "@xs/model";
 import { type CurrentItem, defaultCurrentItem, makeBase } from "./current-item.js";
+import { parseMermaid } from "./mermaid.js";
 import type { PointerEvent, PointerType } from "./pointer-event.js";
 import { type Tool, toolElementType } from "./tool.js";
 import { MIN_SIZE, Transform, type TransformHandle } from "./transform.js";
@@ -1014,6 +1015,24 @@ export class EditorController {
       backgroundColor: "transparent",
       groupIds: [group],
     });
+  }
+
+  /** Parse `text` as a Mermaid flowchart and insert it with top-left at `point`. */
+  insertMermaid(text: string, point: Point): boolean {
+    const parsed = parseMermaid(text, this.nextSeed());
+    if (parsed === null || parsed.length === 0) return false;
+    const minX = Math.min(...parsed.map((e) => e.x));
+    const minY = Math.min(...parsed.map((e) => e.y));
+    const elements = parsed.map((e) => ({
+      ...e,
+      x: e.x + point.x - minX,
+      y: e.y + point.y - minY,
+    }));
+    this.store.transaction((scene) => {
+      for (const el of elements) scene.add(el);
+    });
+    this.selectedIDs = new Set(elements.map((e) => e.id));
+    return true;
   }
 
   /** Build a `kind` chart for `values` at `point`, grouped and selected. */
