@@ -13,7 +13,7 @@ web/
 ├── packages/
 │   ├── math/      @xs/math — points, vectors, angles, curves, geometry  ✅ T0
 │   ├── model/     @xs/model — element schema, scene, .excalidraw codecs ✅ T1
-│   ├── geometry/  @xs/geometry — bounds, hit-test, snapping, frames     🟡 T2
+│   ├── geometry/  @xs/geometry — bounds, hit-test, snapping, elbow A*  ✅ T2
 │   ├── render/    @xs/render — Canvas2D renderer, rough.js, SVG/PNG     🟡 T3
 │   ├── editor/    @xs/editor — tools, selection/transform, actions      🟡 T4
 │   ├── svelte/    @xs/svelte — Svelte 5 runes store + components          (T5)
@@ -99,3 +99,9 @@ pnpm lint          # biome
     reframe with the crop rectangle tracking the pixels (clamped to the full
     image), exit on tool change / tap-away. 9 tests ported from ImageCropTests.
     Still to port: elbow arrows, flowchart spawning.
+  - **T4 slice 8:** elbow-arrow router (`ElbowArrow` in `@xs/geometry`) — A\*
+    over a non-uniform grid with dynamic AABBs and a bend-count heuristic →
+    axis-aligned routes between free points or bound boxes; plus segment
+    editing (fixable segments, drag-to-move with bend insertion,
+    follow-endpoints). 12 tests ported from ElbowArrowTests. Still to port: the
+    elbow editor wiring + flowchart spawning.
