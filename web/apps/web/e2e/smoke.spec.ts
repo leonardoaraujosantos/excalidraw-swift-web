@@ -157,6 +157,52 @@ test("tables gain rows and columns from the toolbar", async ({ page }) => {
   await shot(page, "11-table-grown");
 });
 
+test("double-clicking a table cell opens an editor sized to the cell", async ({ page }) => {
+  await page.getByTestId("gen-table").click();
+  await selectTool(page, "selection");
+  const cb = (await page.getByTestId("canvas").boundingBox())!;
+  const cell = await read(page, (s) => {
+    const c = s.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    return { x: c.x + c.width / 2, y: c.y + c.height / 2, w: c.width };
+  });
+  await page.mouse.dblclick(cb.x + cell.x, cb.y + cell.y);
+  const editor = page.getByTestId("text-editor");
+  await expect(editor).toBeVisible();
+  const box = (await editor.boundingBox())!;
+  // The editor matches the cell width (~120), not the old 222px overflow.
+  expect(box.width).toBeGreaterThan(cell.w - 10);
+  expect(box.width).toBeLessThan(cell.w + 10);
+  await editor.fill("1");
+  await editor.press("Enter");
+  await shot(page, "12-cell-edit");
+});
+
+test("double-clicking a chart changes its plot type and data", async ({ page }) => {
+  await page.getByTestId("gen-chart").click(); // bar chart of [10,20,15,30] → 4 bars
+  const bars = () =>
+    read(page, (s) => s.scene.visibleElements.filter((e) => e.type === "rectangle").length);
+  expect(await bars()).toBe(4);
+
+  await selectTool(page, "selection");
+  const cb = (await page.getByTestId("canvas").boundingBox())!;
+  const bar = await read(page, (s) => {
+    const r = s.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.dblclick(cb.x + bar.x, cb.y + bar.y);
+  await expect(page.getByTestId("chart-editor")).toBeVisible();
+
+  await page.getByTestId("chart-kind").selectOption("line");
+  await page.getByTestId("chart-data").fill("5, 9, 4, 12, 7");
+  await page.getByTestId("chart-apply").click();
+  await page.waitForTimeout(120);
+
+  // A line chart has no bars; the data became 5 points.
+  expect(await bars()).toBe(0);
+  expect(await read(page, (s) => s.scene.visibleElements.some((e) => e.type === "line"))).toBe(true);
+  await shot(page, "13-chart-edited");
+});
+
 test("moving a sticky note carries its label and keeps a tight selection", async ({ page }) => {
   await page.getByTestId("gen-note").click();
   const editor = page.getByTestId("text-editor");

@@ -57,8 +57,24 @@ export class EditorStore {
   revision = 0;
   theme: Theme = "light";
   zenMode = false;
-  /** On-canvas text editing state (`null` when not editing). */
-  editingText: { id: string; value: string; viewX: number; viewY: number } | null = null;
+  /** On-canvas text editing state (`null` when not editing). `viewW`/`viewH` size
+   * the editor to a container (cell/sticky note); absent for free text. */
+  editingText: {
+    id: string;
+    value: string;
+    viewX: number;
+    viewY: number;
+    viewW?: number;
+    viewH?: number;
+  } | null = null;
+  /** Chart editing state (`null` when not editing): plot kind + CSV data. */
+  editingChart: {
+    group: string;
+    kind: "bar" | "line";
+    values: string;
+    viewX: number;
+    viewY: number;
+  } | null = null;
   /** Last known canvas size, for zoom-to-fit and generator placement. */
   canvasWidth = 1024;
   canvasHeight = 768;
@@ -374,8 +390,20 @@ export class EditorStore {
     const container = this.scene.element(containerId);
     const text = this.scene.element(textId);
     if (container === undefined || text === undefined || text.type !== "text") return;
-    const view = this.viewport.sceneToView(new Point(container.x, container.y));
-    this.editingText = { id: textId, value: text.text, viewX: view.x, viewY: view.y };
+    const tl = this.viewport.sceneToView(new Point(container.x, container.y));
+    const br = this.viewport.sceneToView(
+      new Point(container.x + container.width, container.y + container.height),
+    );
+    // Size the editor to the container so a table cell / note label doesn't
+    // overflow to the right of its box.
+    this.editingText = {
+      id: textId,
+      value: text.text,
+      viewX: tl.x,
+      viewY: tl.y,
+      viewW: br.x - tl.x,
+      viewH: br.y - tl.y,
+    };
   }
 
   /**
@@ -397,12 +425,59 @@ export class EditorStore {
    */
   doubleClickAt(viewPoint: Point): void {
     if (this.editBoundTextAt(viewPoint)) return;
-    if (this.controller.beginLinearEdit(this.viewport.viewToScene(viewPoint))) this.bump();
+    const scenePoint = this.viewport.viewToScene(viewPoint);
+    const chartGroup = this.controller.chartGroupAt(scenePoint);
+    if (chartGroup !== null) {
+      this.beginChartEdit(chartGroup, viewPoint);
+      return;
+    }
+    if (this.controller.beginLinearEdit(scenePoint)) this.bump();
   }
 
   /** Whether a line/arrow is currently in point-editing mode (for the UI). */
   get isLinearEditing(): boolean {
     return this.controller.editingLinearID !== null;
+  }
+
+  // MARK: Chart editing (double-click a chart to change plot type + data)
+
+  private beginChartEdit(group: string, viewPoint: Point): void {
+    const info = this.controller.chartInfo(group);
+    if (info === null) return;
+    this.editingChart = {
+      group,
+      kind: info.kind,
+      values: info.values.join(", "),
+      viewX: viewPoint.x,
+      viewY: viewPoint.y,
+    };
+    this.bump();
+  }
+
+  setChartKind(kind: "bar" | "line"): void {
+    if (this.editingChart !== null) this.editingChart = { ...this.editingChart, kind };
+  }
+  setChartValues(values: string): void {
+    if (this.editingChart !== null) this.editingChart = { ...this.editingChart, values };
+  }
+
+  /** Apply the edited plot type + data, rebuilding the chart in place. */
+  commitChart(): void {
+    if (this.editingChart === null) return;
+    const values = this.editingChart.values
+      .split(",")
+      .map((s) => Number.parseFloat(s.trim()))
+      .filter((v) => Number.isFinite(v));
+    if (values.length > 0) {
+      this.controller.updateChart(this.editingChart.group, this.editingChart.kind, values);
+    }
+    this.editingChart = null;
+    this.bump();
+  }
+
+  cancelChart(): void {
+    this.editingChart = null;
+    this.bump();
   }
 
   setEditingText(value: string): void {

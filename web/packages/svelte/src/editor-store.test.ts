@@ -230,6 +230,38 @@ describe("EditorStore", () => {
     expect(store.editBoundTextAt(new Point(5000, 5000))).toBe(false);
   });
 
+  it("sizes the bound-text editor to its container cell (regression)", () => {
+    const store = new EditorStore();
+    store.insertTable(1, 1);
+    const cell = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    store.selectTool("selection");
+    store.doubleClickAt(new Point(cell.x + cell.width / 2, cell.y + cell.height / 2));
+    expect(store.editingText).not.toBeNull();
+    // The editor matches the cell so it doesn't overflow to the right.
+    expect(store.editingText?.viewW).toBeCloseTo(cell.width, 0);
+    expect(store.editingText?.viewH).toBeCloseTo(cell.height, 0);
+  });
+
+  it("double-clicking a chart edits its plot type and data (regression)", () => {
+    const store = new EditorStore();
+    store.insertChart([10, 20, 15], "bar");
+    const bars = () => store.scene.visibleElements.filter((e) => e.type === "rectangle").length;
+    expect(bars()).toBe(3);
+
+    const bar = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    store.selectTool("selection");
+    store.doubleClickAt(new Point(bar.x + bar.width / 2, bar.y + bar.height / 2));
+    expect(store.editingChart).not.toBeNull();
+    expect(store.editingChart?.kind).toBe("bar");
+
+    store.setChartKind("line");
+    store.setChartValues("5, 6, 7, 8");
+    store.commitChart();
+    expect(store.editingChart).toBeNull();
+    expect(bars()).toBe(0); // a line chart has no bars
+    expect(store.scene.visibleElements.some((e) => e.type === "line")).toBe(true);
+  });
+
   it("double-clicking a line enters point (spline) editing (regression)", () => {
     const store = new EditorStore();
     store.selectTool("line");

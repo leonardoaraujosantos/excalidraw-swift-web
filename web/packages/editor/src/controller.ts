@@ -1648,7 +1648,7 @@ export class EditorController {
         type: "line",
         width,
         groupIds: [groupID],
-        customData: { chart: { kind, values: axisValues } },
+        customData: { chart: { kind, values: axisValues, x: point.x, y: point.y } },
         points: [
           [0, 0],
           [width, 0],
@@ -1731,6 +1731,74 @@ export class EditorController {
     this.selectedIDs = this.groupSiblings(last?.id ?? "");
     return groupID;
   }
+
+  /** The chart group `id` belongs to, if any (its group contains a chart anchor). */
+  chartGroupID(id: string): string | null {
+    const el = this.scene.element(id);
+    if (el === undefined) return null;
+    for (const g of el.groupIds) {
+      if (this.scene.visibleElements.some((e) => e.groupIds.includes(g) && hasChartData(e))) {
+        return g;
+      }
+    }
+    return null;
+  }
+
+  /** The chart's kind/values/origin (from its anchor's `customData`), or null. */
+  chartInfo(
+    group: string,
+  ): { kind: "bar" | "line"; values: number[]; x: number; y: number } | null {
+    const anchor = this.scene.visibleElements.find(
+      (e) => e.groupIds.includes(group) && hasChartData(e),
+    );
+    const data = anchor?.customData?.chart as
+      | { kind?: unknown; values?: unknown; x?: unknown; y?: unknown }
+      | undefined;
+    if (data === undefined) return null;
+    const values = Array.isArray(data.values)
+      ? data.values.filter((v): v is number => typeof v === "number")
+      : [];
+    return {
+      kind: data.kind === "line" ? "line" : "bar",
+      values,
+      x: typeof data.x === "number" ? data.x : (anchor?.x ?? 0),
+      y: typeof data.y === "number" ? data.y : (anchor?.y ?? 0),
+    };
+  }
+
+  /** The topmost chart hit at `point` (selects its group), or null. */
+  chartGroupAt(point: Point): string | null {
+    const threshold = this.handleHitRadius("mouse");
+    const visible = this.scene.visibleElements;
+    for (let k = visible.length - 1; k >= 0; k--) {
+      const el = visible[k]!;
+      if (!el.locked && hit(el, point, threshold)) {
+        const group = this.chartGroupID(el.id);
+        if (group !== null) {
+          this.selectedIDs = this.groupSiblings(el.id);
+          return group;
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Replace a chart group in place with a new plot kind / data at its origin. */
+  updateChart(group: string, kind: "bar" | "line", values: number[]): string | null {
+    const info = this.chartInfo(group);
+    if (info === null) return null;
+    const ids = this.scene.visibleElements
+      .filter((e) => e.groupIds.includes(group))
+      .map((e) => e.id);
+    this.store.modifyScene((scene) => {
+      for (const id of ids) scene.remove(id);
+    });
+    return this.createChart(new Point(info.x, info.y), values, [], kind);
+  }
+}
+
+function hasChartData(el: ExcalidrawElement): boolean {
+  return el.customData?.chart !== undefined;
 }
 
 function boxOf(a: Point, b: Point): BoundingBox {

@@ -28,6 +28,7 @@
       stats: store.selectionStats,
       editing: store.editingText,
       table: store.selectedTableGroup,
+      chart: store.editingChart,
     };
   });
 
@@ -193,7 +194,9 @@
         class="text-editor"
         data-testid="text-editor"
         autofocus
-        style="left:{view.editing.viewX}px;top:{view.editing.viewY}px"
+        style="left:{view.editing.viewX}px;top:{view.editing.viewY}px{view.editing.viewW
+          ? `;width:${view.editing.viewW}px;min-width:0;height:${view.editing.viewH}px`
+          : ''}"
         value={view.editing.value}
         oninput={(e) => store.setEditingText((e.currentTarget as HTMLTextAreaElement).value)}
         onblur={() => store.commitText()}
@@ -204,6 +207,30 @@
           }
         }}
       ></textarea>
+    {/if}
+    {#if view.chart !== null}
+      <div class="chart-editor" data-testid="chart-editor" style="left:{view.chart.viewX}px;top:{view.chart.viewY}px">
+        <label>Plot
+          <select
+            data-testid="chart-kind"
+            value={view.chart.kind}
+            onchange={(e) => store.setChartKind((e.currentTarget as HTMLSelectElement).value as "bar" | "line")}
+          >
+            <option value="bar">Bar</option>
+            <option value="line">Line</option>
+          </select>
+        </label>
+        <label>Data
+          <input
+            data-testid="chart-data"
+            type="text"
+            value={view.chart.values}
+            oninput={(e) => store.setChartValues((e.currentTarget as HTMLInputElement).value)}
+          />
+        </label>
+        <button data-testid="chart-apply" onclick={() => store.commitChart()}>Apply</button>
+        <button onclick={() => store.cancelChart()}>Cancel</button>
+      </div>
     {/if}
   </main>
 
@@ -240,6 +267,20 @@
     outline: none;
     padding: 0;
   }
+  .chart-editor {
+    position: absolute;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid #4263eb;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px #0003;
+    z-index: 10;
+  }
+  .app[data-theme="dark"] .chart-editor { background: #2a2a2a; color: #eee; }
+  .chart-editor input[type="text"] { width: 140px; }
   .sep { width: 1px; align-self: stretch; background: #0002; margin: 0 4px; }
   .grow { flex: 1; }
   label { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; }

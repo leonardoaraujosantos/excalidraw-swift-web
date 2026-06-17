@@ -204,3 +204,10 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     table actions (`addTableRow` / `addTableColumn`) to the toolbar, re-selecting
     the grown table. E2E covers: the Mermaid diagram is grouped/labelled and
     moves as one unit with arrows intact, and a 3×3 table grows to 4×4.
+  - **Cell editor sizing + chart editing:** the on-canvas text editor is now
+    sized to its container, so a **table-cell** label no longer overflows to the
+    right of its cell (it was a fixed-min-width textarea wider than the cell).
+    Double-clicking a **chart** opens an inline editor to change the **plot type**
+    (bar ↔ line) and the **data** (CSV), rebuilding the chart in place at its
+    origin. E2E: the cell editor matches the cell width, and a bar chart converts
+    to a 5-point line chart.
