@@ -10,6 +10,25 @@ import Foundation
 /// UI. The underlying `CollabClient` auto-reconnects and re-joins.
 @MainActor
 public extension EditorModel {
+    /// Auto-join a room from launch arguments / `UserDefaults` of the form
+    /// `-collabRelay ws://… -collabRoom <id> -collabName <name>` — used by the
+    /// live iOS↔web collaboration UI test (and any deep-link launch).
+    func joinCollabFromLaunchArguments(_ defaults: UserDefaults = .standard) {
+        guard collab == nil,
+              let relay = defaults.string(forKey: "collabRelay"), !relay.isEmpty,
+              let room = defaults.string(forKey: "collabRoom"), !room.isEmpty,
+              let url = URL(string: relay)
+        else { return }
+        let name = defaults.string(forKey: "collabName") ?? "iPad"
+        let palette = ["#e64980", "#4263eb", "#0ca678", "#f08c00", "#ae3ec9"]
+        let peer = Peer(
+            id: "\(name.lowercased())-\(Int.random(in: 1000 ... 9999))",
+            name: name,
+            color: palette.randomElement() ?? "#e64980"
+        )
+        startCollab(url: url, peer: peer, room: room)
+    }
+
     /// Join a collaboration room. Local edits sync to peers; remote edits apply
     /// reconciled. Element ids are namespaced by the peer id so two clients never
     /// collide.
