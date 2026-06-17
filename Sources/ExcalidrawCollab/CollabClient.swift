@@ -34,6 +34,10 @@ public final class CollabClient {
     private let handlers: Handlers
     private let session: URLSession
     private var task: URLSessionWebSocketTask?
+    private var intentionalClose = false
+    private var reconnectAttempt = 0
+    /// Cap on the exponential reconnect backoff, in seconds.
+    public var maxReconnectDelay: Double = 10
 
     /// The id the relay assigned this client (set once `room-state` arrives).
     public private(set) var you: String?
@@ -50,8 +54,15 @@ public final class CollabClient {
         self.session = session
     }
 
-    /// Open the socket, join the room, and start receiving.
+    /// Open the socket, join the room, and start receiving. Auto-reconnects with
+    /// exponential backoff if the connection drops (the relay re-sends
+    /// `room-state` on rejoin, so the scene resyncs); `disconnect()` stops it.
     public func connect() {
+        intentionalClose = false
+        openSocket()
+    }
+
+    private func openSocket() {
         let task = session.webSocketTask(with: url)
         self.task = task
         task.resume()
@@ -59,11 +70,22 @@ public final class CollabClient {
         receiveNext()
     }
 
-    /// Leave the room and close the socket.
+    /// Leave the room and close the socket (no reconnect).
     public func disconnect() {
+        intentionalClose = true
         if let you { send(.leave(peerId: you)) }
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
+    }
+
+    private func scheduleReconnect() {
+        guard !intentionalClose else { return }
+        reconnectAttempt += 1
+        let delay = min(maxReconnectDelay, 0.25 * pow(2.0, Double(reconnectAttempt - 1)))
+        DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, !self.intentionalClose else { return }
+            self.openSocket()
+        }
     }
 
     // MARK: Outbound
@@ -96,10 +118,11 @@ public final class CollabClient {
             guard let self else { return }
             switch result {
             case let .success(message):
+                self.reconnectAttempt = 0
                 if case let .string(text) = message { self.handleRaw(text) }
                 self.receiveNext()
             case .failure:
-                break // socket closed; a production client would reconnect here
+                self.scheduleReconnect() // dropped — redial with backoff and rejoin
             }
         }
     }

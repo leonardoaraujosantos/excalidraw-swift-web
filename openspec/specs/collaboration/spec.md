@@ -85,3 +85,27 @@ decoder SHALL reject malformed JSON and unknown message types.
 - WHEN a decoder receives invalid JSON or an object whose `type` is not a known
   message type
 - THEN it SHALL raise a protocol error rather than act on the data.
+
+### Requirement: Connection resilience
+
+The system SHALL survive transient disconnects: a client whose connection drops
+SHALL automatically reconnect (with backoff), rejoin its room, and resync,
+without losing edits made while briefly offline. An explicit leave SHALL stop
+reconnecting.
+
+#### Scenario: Reconnect and resync
+- GIVEN a client whose socket drops unexpectedly
+- WHEN the transport reconnects
+- THEN the client SHALL re-send `join`, receive the current `room-state`, and
+  resync — merging (not discarding) its local scene with the room snapshot, and
+  re-broadcasting any element the room does not yet have.
+
+#### Scenario: Explicit leave stops reconnecting
+- WHEN a client leaves the room (closes intentionally)
+- THEN it SHALL NOT attempt to reconnect.
+
+#### Scenario: A stale disconnect does not evict a reconnected peer
+- GIVEN a peer reconnected on a new connection (same peer id)
+- WHEN the relay later processes the close of that peer's previous connection
+- THEN it SHALL NOT remove the peer (the close only evicts the connection that
+  still owns the peer).

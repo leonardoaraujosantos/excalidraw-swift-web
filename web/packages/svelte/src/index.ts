@@ -5,5 +5,7 @@ export {
   type CollabSocket,
   type CollabHooks,
   type RemoteCursor,
+  type ReconnectOptions,
   browserSocket,
+  reconnectingSocket,
 } from "./collab-session.js";

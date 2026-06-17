@@ -119,6 +119,36 @@ describe("EditorStore collaboration", () => {
     expect(bobId.startsWith("bob-")).toBe(true);
   });
 
+  it("merges a reconnect snapshot: local edits survive and are re-broadcast (regression)", () => {
+    const { store, socket } = connectedStore();
+    // Draw locally while connected.
+    store.selectTool("rectangle");
+    store.pointer("down", new Point(10, 10));
+    store.pointer("move", new Point(60, 40));
+    store.pointer("up", new Point(60, 40));
+    const localId = store.scene.visibleElements.find((e) => e.type === "rectangle")!.id;
+
+    const before = socket.sent.length;
+    // Reconnect: the relay re-sends room-state with a *different* peer's element
+    // (and not ours). The merge must keep our element and re-publish it.
+    const remote: ExcalidrawElement = {
+      ...defaultBase("peer-x", { width: 10, height: 10 }),
+      type: "ellipse",
+      version: 1,
+    };
+    socket.deliver(
+      message("room-state", { protocol: 1, you: "me", peers: [], elements: [remote] }),
+    );
+
+    expect(store.scene.element(localId)).toBeDefined(); // survived the snapshot
+    expect(store.scene.element("peer-x")).toBeDefined(); // room element merged in
+    const reBroadcast = socket.sent
+      .slice(before)
+      .filter((m) => m.type === "element-updates")
+      .flatMap((m) => (m.type === "element-updates" ? m.elements : []));
+    expect(reBroadcast.some((e) => e.id === localId)).toBe(true); // re-published to the room
+  });
+
   it("loads a room snapshot on join", () => {
     const store = new EditorStore();
     const socket = new FakeSocket();

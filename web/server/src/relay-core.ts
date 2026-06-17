@@ -119,6 +119,11 @@ export class RelayCore {
     conn.peerId = null;
     if (room === undefined) return [];
 
+    // Only evict the peer if this connection still owns it. A late close from a
+    // *previous* connection must not remove a peer that has already reconnected
+    // (same peerId, new connection).
+    if (room.peers.get(peerId)?.connId !== connId) return [];
+
     room.peers.delete(peerId);
     const others = this.otherConns(room, connId);
     if (room.peers.size === 0) this.rooms.delete(roomName); // drop empty rooms

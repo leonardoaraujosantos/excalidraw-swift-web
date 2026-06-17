@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Tool } from "@xs/editor";
   import type { FillStyle } from "@xs/model";
-  import { EditorStore, browserSocket } from "@xs/svelte";
+  import { EditorStore, browserSocket, reconnectingSocket } from "@xs/svelte";
   import Canvas from "./lib/Canvas.svelte";
 
   const store = new EditorStore();
@@ -19,7 +19,7 @@
       name: params.get("name") ?? "Guest",
       color: palette[Math.floor(Math.random() * palette.length)]!,
     };
-    store.startCollab(browserSocket(relayUrl), peer, roomName);
+    store.startCollab(reconnectingSocket(() => browserSocket(relayUrl)), peer, roomName);
   }
   // The store is plain TS, so its reads aren't reactive on their own. Poll the
   // revision counter and expose store-derived UI state through `view`, which

@@ -3,7 +3,7 @@ import { encode, message, reconcileElements } from "@xs/protocol";
 import { type RelayHandle, startRelay } from "@xs/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
-import { CollabSession, type CollabSocket } from "./collab-session.js";
+import { CollabSession, type CollabSocket, reconnectingSocket } from "./collab-session.js";
 
 /**
  * End-to-end collaboration over the real relay with *simulated devices*: a
@@ -26,8 +26,11 @@ afterEach(async () => {
 });
 
 function wsSocket(ws: WebSocket): CollabSocket {
+  ws.on("error", () => {}); // swallow connect failures (treated as a close → reconnect)
   return {
-    send: (d) => ws.send(d),
+    send: (d) => {
+      if (ws.readyState === ws.OPEN) ws.send(d);
+    },
     close: () => ws.close(),
     onOpen: (h) => ws.on("open", h),
     onMessage: (h) => ws.on("message", (raw) => h(raw.toString())),
@@ -113,6 +116,49 @@ describe("collaboration end-to-end (simulated devices)", () => {
 
     web.ws.close();
     ios.ws.close();
+  });
+
+  it("survives a dropped socket: reconnects, rejoins, and resyncs the scene", async () => {
+    // Another device seeds the room.
+    const other = device("seed");
+    await until(() => other.session.you !== null);
+    other.edit([el("seeded", 1)]);
+
+    // A reconnecting client whose underlying sockets we can drop.
+    const raws: WebSocket[] = [];
+    const scene = new Map<string, ExcalidrawElement>();
+    const session = new CollabSession(
+      reconnectingSocket(
+        () => {
+          const ws = new WebSocket(url);
+          raws.push(ws);
+          return wsSocket(ws);
+        },
+        { schedule: (_attempt, run) => setTimeout(run, 20) },
+      ),
+      { id: "rejoiner", name: "Re", color: "#000" },
+      "room",
+      {
+        onScene: (els) => {
+          scene.clear();
+          for (const e of els) scene.set(e.id, e);
+        },
+        onRemoteElements: (els) => {
+          for (const e of els) scene.set(e.id, e);
+        },
+      },
+    );
+    await until(() => session.you !== null && scene.has("seeded"));
+
+    // Force-drop the live socket; the wrapper must redial and rejoin.
+    raws[0]!.close();
+    await until(() => raws.length >= 2 && session.you !== null);
+    // After rejoining, the relay re-sends the room scene (still has "seeded").
+    await until(() => scene.has("seeded"));
+    expect(session.you).toBe("rejoiner");
+
+    session.leave();
+    other.ws.close();
   });
 
   it("a raw-protocol client (the minimal Swift client) interoperates", async () => {

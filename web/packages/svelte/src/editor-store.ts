@@ -537,13 +537,22 @@ export class EditorStore {
     return this.collab === null ? [] : [...this.collab.cursors.values()];
   }
 
-  /** Replace the whole scene from a room snapshot (no undo step). */
+  /**
+   * Apply a room snapshot (on join / reconnect). The snapshot is *merged* with
+   * the local scene by reconciliation rather than blindly replacing it, so edits
+   * made while briefly disconnected survive — and anything the room doesn't yet
+   * have (or that is locally newer) is re-broadcast after merging.
+   */
   private applyRemoteScene(elements: ExcalidrawElement[]): void {
-    this.controller.store.modifyScene((scene) => scene.replaceAll(elements));
+    const merged = reconcileElements(this.scene.elements, elements);
+    this.controller.store.modifyScene((scene) => scene.replaceAll(merged));
     this.controller.store.rebase();
-    this.controller.selectedIDs = new Set();
-    this.syncBroadcastBaseline();
+    // Treat only the room's versions as already-broadcast; local-only or
+    // locally-newer elements stay "dirty" so broadcastLocalChanges re-publishes them.
+    this.lastBroadcast.clear();
+    for (const el of elements) this.lastBroadcast.set(el.id, el.version);
     this.revision += 1;
+    this.broadcastLocalChanges();
   }
 
   /** Merge a versioned remote batch into the scene (reconciled, no undo step). */

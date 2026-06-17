@@ -1,7 +1,7 @@
 import { type ExcalidrawElement, defaultBase } from "@xs/model";
 import { type Message, type Peer, decode, encode, message } from "@xs/protocol";
 import { describe, expect, it } from "vitest";
-import { CollabSession, type CollabSocket } from "./collab-session.js";
+import { CollabSession, type CollabSocket, reconnectingSocket } from "./collab-session.js";
 
 const me: Peer = { id: "me", name: "Me", color: "#111" };
 const alice: Peer = { id: "alice", name: "Alice", color: "#e64980" };
@@ -134,5 +134,49 @@ describe("CollabSession", () => {
     const count = socket.sent.length;
     s.broadcastElements([]);
     expect(socket.sent.length).toBe(count);
+  });
+});
+
+describe("reconnectingSocket", () => {
+  it("re-dials and re-joins after an unexpected drop", () => {
+    const dialed: FakeSocket[] = [];
+    const socket = reconnectingSocket(
+      () => {
+        const s = new FakeSocket();
+        dialed.push(s);
+        return s;
+      },
+      { schedule: (_attempt, run) => run() }, // reconnect synchronously in tests
+    );
+    // A CollabSession sends `join` on every (re)open.
+    new CollabSession(socket, me, "room", { onScene: () => {}, onRemoteElements: () => {} });
+
+    dialed[0]!.open();
+    expect(dialed.length).toBe(1);
+    expect(dialed[0]!.last().type).toBe("join");
+
+    // The transport drops (raw socket closes) → a fresh socket is dialed and re-joins.
+    dialed[0]!.close();
+    expect(dialed.length).toBe(2);
+    dialed[1]!.open();
+    expect(dialed[1]!.last().type).toBe("join");
+
+    // Inbound on the new socket reaches the session (broadcast works through it too).
+    dialed[1]!.deliver(message("room-state", { protocol: 1, you: "me", peers: [], elements: [] }));
+  });
+
+  it("stops reconnecting after an explicit close", () => {
+    const dialed: FakeSocket[] = [];
+    const socket = reconnectingSocket(
+      () => {
+        const s = new FakeSocket();
+        dialed.push(s);
+        return s;
+      },
+      { schedule: (_attempt, run) => run() },
+    );
+    dialed[0]!.open();
+    socket.close(); // user leaves → underlying close must NOT trigger a redial
+    expect(dialed.length).toBe(1);
   });
 });

@@ -61,6 +61,18 @@ describe("RelayCore — rooms & presence", () => {
     expect(core.roomCount).toBe(0); // empty room cleaned up
   });
 
+  it("a stale close does not evict a peer that already reconnected (regression)", () => {
+    const core = new RelayCore();
+    join(core, "c0", peerA);
+    // peerA reconnects on a fresh connection (same id) before c0's close arrives.
+    join(core, "c1", peerA);
+    expect(core.peersIn("r1").map((p) => p.id)).toEqual(["A"]);
+    // The old connection finally closes — must NOT remove the reconnected peer.
+    const out = core.disconnect("c0");
+    expect(out).toEqual([]);
+    expect(core.peersIn("r1").map((p) => p.id)).toEqual(["A"]);
+  });
+
   it("ping is answered with ack to the sender only", () => {
     const core = new RelayCore();
     core.connect("c0");

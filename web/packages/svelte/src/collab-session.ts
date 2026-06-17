@@ -177,3 +177,77 @@ export function browserSocket(url: string): CollabSocket {
     onClose: (h) => ws.addEventListener("close", () => h()),
   };
 }
+
+export interface ReconnectOptions {
+  /**
+   * Schedule reconnect `attempt` (1-based); call `run` to retry. Defaults to
+   * exponential backoff (250ms·2^(n-1), capped) via `setTimeout`. Injectable so
+   * tests can run reconnects synchronously.
+   */
+  schedule?: (attempt: number, run: () => void) => void;
+  maxDelayMs?: number;
+}
+
+function defaultSchedule(maxDelayMs: number): (attempt: number, run: () => void) => void {
+  return (attempt, run) => {
+    setTimeout(run, Math.min(maxDelayMs, 250 * 2 ** (attempt - 1)));
+  };
+}
+
+/**
+ * A {@link CollabSocket} that transparently reconnects: when the underlying
+ * connection drops unexpectedly it dials a fresh one (with backoff) and re-fires
+ * `onOpen`, so {@link CollabSession} re-`join`s the room and resyncs the scene on
+ * its own. An explicit `close()` stops reconnecting. `connect` mints a one-shot
+ * socket each call — e.g. `() => browserSocket(url)`.
+ */
+export function reconnectingSocket(
+  connect: () => CollabSocket,
+  options: ReconnectOptions = {},
+): CollabSocket {
+  const schedule = options.schedule ?? defaultSchedule(options.maxDelayMs ?? 10_000);
+  let raw: CollabSocket | null = null;
+  let openHandler: () => void = () => {};
+  let messageHandler: (data: string) => void = () => {};
+  let closeHandler: () => void = () => {};
+  let userClosed = false;
+  let attempt = 0;
+
+  const dial = (): void => {
+    const socket = connect();
+    raw = socket;
+    socket.onOpen(() => {
+      attempt = 0;
+      openHandler();
+    });
+    socket.onMessage((data) => messageHandler(data));
+    socket.onClose(() => {
+      closeHandler();
+      if (!userClosed) {
+        attempt += 1;
+        // Re-check on fire: the user may close() while the retry is queued.
+        schedule(attempt, () => {
+          if (!userClosed) dial();
+        });
+      }
+    });
+  };
+  dial();
+
+  return {
+    send: (data) => raw?.send(data),
+    close: () => {
+      userClosed = true;
+      raw?.close();
+    },
+    onOpen: (h) => {
+      openHandler = h;
+    },
+    onMessage: (h) => {
+      messageHandler = h;
+    },
+    onClose: (h) => {
+      closeHandler = h;
+    },
+  };
+}

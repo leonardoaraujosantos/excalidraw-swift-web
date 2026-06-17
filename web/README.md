@@ -226,6 +226,17 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     Playwright test (live convergence + presence), wire conformance; Swift
     reconcile parity + byte-identical fixture conformance. The library is now
     **feature-complete with a working collaborative web example**.
+  - **T7 slice 4 — connection resilience.** A `reconnectingSocket` wrapper
+    transparently re-dials (exponential backoff) and re-fires `onOpen`, so the
+    session auto-rejoins and resyncs; an explicit `leave()` stops it. Reconnect
+    resync **merges** the room snapshot with the local scene (offline edits
+    survive and are re-broadcast) rather than replacing it. The relay hardens the
+    reconnect race: a late close from a peer's previous connection no longer
+    evicts the reconnected peer. The Swift `CollabClient` gained matching
+    auto-reconnect. Tests: `reconnectingSocket` unit (re-dials + re-joins; stops
+    after close), store reconnect-merge regression, a relay-core stale-close
+    guard, and an end-to-end integration that drops a live socket and asserts the
+    client reconnects + resyncs over the real relay.
   - **Mermaid + tables hardening:** a Playwright pass over the generators
     surfaced and fixed a label bug — container-bound text (Mermaid nodes, table
     cells) rendered **left-aligned** because centring keyed on the stored cell
