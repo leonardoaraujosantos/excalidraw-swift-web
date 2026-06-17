@@ -155,17 +155,19 @@ describe("scene renderer", () => {
       type: "rectangle",
     };
     const label: ExcalidrawElement = {
-      ...defaultBase("txt", { x: 20, y: 100, width: 40, height: 20 }),
+      // width 140 mimics a table/Mermaid cell whose stored width is the cell,
+      // not the glyph — centring must use the measured text width, not this.
+      ...defaultBase("txt", { x: 20, y: 100, width: 140, height: 20 }),
       type: "text",
       ...defaultTextProps({ text: "Hi", originalText: "Hi", containerId: "cont" }),
     };
     const ctx = new RecordingContext();
     renderScene(ctx, new Scene([container, label]), opts());
 
-    // x origin == container.midX - textWidth/2 == 100 - 20 == 80, independent of
-    // the text element's own x (20), proving it was re-centred in the container.
+    // x origin == container.midX - measuredWidth/2 == 100 - (2·20·0.6)/2 == 88,
+    // independent of the text's stored width (140) and x (20): re-centred by glyphs.
     expect(ctx.lastTextOrigin).not.toBeNull();
-    expect(ctx.lastTextOrigin![0]).toBeCloseTo(80, 5);
+    expect(ctx.lastTextOrigin![0]).toBeCloseTo(88, 5);
   });
 
   it("culls far off-screen elements", () => {

@@ -27,6 +27,7 @@
       theme: store.theme,
       stats: store.selectionStats,
       editing: store.editingText,
+      table: store.selectedTableGroup,
     };
   });
 
@@ -170,6 +171,11 @@
     <button data-testid="duplicate" onclick={() => store.duplicate()}>Duplicate</button>
     <button data-testid="group" onclick={() => store.group()}>Group</button>
     <button onclick={() => store.ungroup()}>Ungroup</button>
+    {#if view.table !== null}
+      <span class="sep"></span>
+      <button data-testid="table-add-row" onclick={() => store.addTableRow()}>+ Row</button>
+      <button data-testid="table-add-col" onclick={() => store.addTableColumn()}>+ Col</button>
+    {/if}
     <span class="sep"></span>
     <button title="Align left" onclick={() => store.align("left")}>⇤</button>
     <button title="Align centre" onclick={() => store.align("centerX")}>↔</button>

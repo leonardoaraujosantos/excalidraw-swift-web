@@ -162,6 +162,22 @@ function drawFreedraw(
   ctx.fill();
 }
 
+/**
+ * Approximate rendered size of a text block (widest line × total height), using
+ * the same `fontSize · 0.6` advance the editor uses when it sizes text. Mirrors
+ * Swift's `TextLayout.measure`, which is what bound-text centering keys on — the
+ * stored `width`/`height` can be a container cell size (e.g. a table/Mermaid
+ * node), not the glyph extent. (parity: TextLayout.measure)
+ */
+function measureText(el: TextElement): { width: number; height: number } {
+  const lines = el.text.split("\n");
+  const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
+  return {
+    width: longest * el.fontSize * 0.6,
+    height: Math.max(1, lines.length) * el.fontSize * el.lineHeight,
+  };
+}
+
 function drawText(ctx: RenderContext, el: TextElement): void {
   ctx.fillStyle = el.strokeColor;
   ctx.font = `${el.fontSize}px sans-serif`;
@@ -223,11 +239,14 @@ export function renderScene(ctx: RenderContext, scene: Scene, opts: RenderOption
     }
     switch (el.type) {
       case "text": {
-        // Centre text bound to a container (e.g. a sticky note) within it.
+        // Centre text bound to a container (e.g. a sticky note, table cell, or
+        // Mermaid node) within it, by the *measured* glyph size — the stored
+        // width may be the full cell, which would otherwise left-align the label.
         const container = el.containerId !== null ? scene.element(el.containerId) : undefined;
         if (container !== undefined) {
-          const ox = container.x + container.width / 2 - el.width / 2;
-          const oy = container.y + container.height / 2 - el.height / 2;
+          const m = measureText(el);
+          const ox = container.x + container.width / 2 - m.width / 2;
+          const oy = container.y + container.height / 2 - m.height / 2;
           ctx.translate(ox - el.x, oy - el.y);
         }
         drawText(ctx, el);

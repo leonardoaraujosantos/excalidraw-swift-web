@@ -177,6 +177,25 @@ describe("EditorStore", () => {
     expect(store.scene.visibleElements.some((e) => e.backgroundColor === "#ffec99")).toBe(true);
   });
 
+  it("adds rows and columns to the selected table (regression)", () => {
+    const store = new EditorStore();
+    store.insertTable(2, 2); // 4 cells
+    store.controller.selectAll();
+    expect(store.selectedTableGroup).not.toBeNull();
+
+    const cells = () => store.scene.visibleElements.filter((e) => e.type === "rectangle").length;
+    expect(cells()).toBe(4);
+    store.addTableRow(); // 2×2 → 3×2: +2 cells
+    expect(cells()).toBe(6);
+    store.addTableColumn(); // 3×2 → 3×3: +3 cells
+    expect(cells()).toBe(9);
+
+    // No-op when nothing (or a non-table) is selected.
+    store.controller.selectedIDs.clear();
+    store.addTableRow();
+    expect(cells()).toBe(9);
+  });
+
   it("inserting a sticky note begins editing its bound text (regression)", () => {
     const store = new EditorStore();
     store.insertStickyNote();

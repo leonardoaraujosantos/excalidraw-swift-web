@@ -106,6 +106,57 @@ test("types on-canvas text", async ({ page }) => {
   await shot(page, "04-text");
 });
 
+test("the Mermaid diagram is grouped, labelled, and moves as one unit", async ({ page }) => {
+  await page.getByTestId("gen-mermaid").click();
+  await page.waitForTimeout(120);
+  // Nodes (rect/diamond) + bound labels + connecting arrows.
+  const shape = await read(page, (s) => ({
+    nodes: s.scene.visibleElements.filter((e) => e.type === "rectangle" || e.type === "diamond").length,
+    arrows: s.scene.visibleElements.filter((e) => e.type === "arrow").length,
+    labels: s.scene.visibleElements.filter((e) => e.type === "text" && e.containerId !== null).length,
+  }));
+  expect(shape.nodes).toBeGreaterThanOrEqual(3);
+  expect(shape.arrows).toBeGreaterThanOrEqual(2);
+  expect(shape.labels).toBe(shape.nodes);
+  await shot(page, "09-mermaid");
+
+  // Select the whole diagram and drag it; every element shifts by the same delta.
+  await selectTool(page, "selection");
+  const cb = (await page.getByTestId("canvas").boundingBox())!;
+  const node = await read(page, (s) => {
+    const r = s.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    return { id: r.id, cx: r.x + r.width / 2, cy: r.y + r.height / 2, x0: r.x, y0: r.y };
+  });
+  await page.mouse.move(cb.x + node.cx, cb.y + node.cy);
+  await page.mouse.down();
+  await page.mouse.move(cb.x + node.cx + 100, cb.y + node.cy - 60, { steps: 8 });
+  await page.mouse.up();
+  const after = await read(page, (s) => {
+    const r = s.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    return { x: r.x, y: r.y, arrows: s.scene.visibleElements.filter((e) => e.type === "arrow").length };
+  });
+  expect(after.x).toBeCloseTo(node.x0 + 100, 0);
+  expect(after.y).toBeCloseTo(node.y0 - 60, 0);
+  expect(after.arrows).toBe(shape.arrows); // arrows preserved, not orphaned
+  await shot(page, "10-mermaid-moved");
+});
+
+test("tables gain rows and columns from the toolbar", async ({ page }) => {
+  await page.getByTestId("gen-table").click();
+  const cells = () =>
+    read(page, (s) => s.scene.visibleElements.filter((e) => e.type === "rectangle").length);
+  expect(await cells()).toBe(9); // default 3×3
+
+  // The table is selected after insert; the row/col buttons appear for it.
+  await expect(page.getByTestId("table-add-row")).toBeVisible();
+  await page.getByTestId("table-add-row").click();
+  expect(await cells()).toBe(12); // 4×3
+  await page.getByTestId("table-add-col").click();
+  expect(await cells()).toBe(16); // 4×4
+  await page.waitForTimeout(120); // let the canvas poll repaint the new column
+  await shot(page, "11-table-grown");
+});
+
 test("moving a sticky note carries its label and keeps a tight selection", async ({ page }) => {
   await page.getByTestId("gen-note").click();
   const editor = page.getByTestId("text-editor");

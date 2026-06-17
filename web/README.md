@@ -196,3 +196,11 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
   as the OpenSpec [`collaboration`](../openspec/specs/collaboration/spec.md)
   baseline. Still to do: the Node relay `server/`, presence/cursor UI, and the
   Swift client.
+  - **Mermaid + tables hardening:** a Playwright pass over the generators
+    surfaced and fixed a label bug — container-bound text (Mermaid nodes, table
+    cells) rendered **left-aligned** because centring keyed on the stored cell
+    width; it now centres by the *measured* glyph size (parity with Swift's
+    `TextLayout.measure`), so labels sit centred. Wired **add-row / add-column**
+    table actions (`addTableRow` / `addTableColumn`) to the toolbar, re-selecting
+    the grown table. E2E covers: the Mermaid diagram is grouped/labelled and
+    moves as one unit with arrows intact, and a 3×3 table grows to 4×4.

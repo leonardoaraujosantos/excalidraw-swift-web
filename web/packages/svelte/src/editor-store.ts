@@ -302,6 +302,41 @@ export class EditorStore {
     this.controller.createTable(this.viewportCenterScene(), rows, cols);
     this.bump();
   }
+
+  /** The table group id of the current selection, if it is (part of) a table. */
+  get selectedTableGroup(): string | null {
+    for (const id of this.controller.selectedIDs) {
+      const group = this.controller.tableGroupID(id);
+      if (group !== null) return group;
+    }
+    return null;
+  }
+
+  /** Append a row to the selected table (no-op if no table is selected). */
+  addTableRow(): void {
+    const group = this.selectedTableGroup;
+    if (group === null) return;
+    this.controller.addTableRow(group);
+    this.reselectTable(group);
+    this.bump();
+  }
+
+  /** Append a column to the selected table (no-op if no table is selected). */
+  addTableColumn(): void {
+    const group = this.selectedTableGroup;
+    if (group === null) return;
+    this.controller.addTableColumn(group);
+    this.reselectTable(group);
+    this.bump();
+  }
+
+  /** Re-select the whole table group so the selection grows with new cells. */
+  private reselectTable(group: string): void {
+    const ids = this.scene.visibleElements
+      .filter((el) => this.controller.tableGroupID(el.id) === group)
+      .map((el) => el.id);
+    this.controller.selectedIDs = new Set(ids);
+  }
   insertChart(values: number[], kind: "bar" | "line" = "bar"): void {
     this.controller.createChart(this.viewportCenterScene(), values, [], kind);
     this.bump();
