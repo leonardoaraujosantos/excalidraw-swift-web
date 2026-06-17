@@ -147,7 +147,7 @@ Legend: 🎯 milestone deliverable · 🧪 test focus · ⚠️ risk/hard part.
 
 ## Known gaps & deferred items
 
-The single source of truth for what's **not** yet implemented, kept in sync with the code. Phases 0–7 + tables/charts + Phase 7.5 rendering acceleration are complete, and most of the original long tail has since shipped (Mermaid, embeddables, PNG re-open, pickers, laser/eraser, fonts infra, Apple Pencil, Files/autosave — see **Recently closed** below). 595 tests, ~92% logic coverage, CI green; everything still listed is deliberately deferred, not forgotten.
+The single source of truth for what's **not** yet implemented, kept in sync with the code. Phases 0–7 + tables/charts + Phase 7.5 rendering acceleration are complete, and most of the original long tail has since shipped (Mermaid, embeddables, PNG re-open, pickers, laser/eraser, fonts infra, Apple Pencil, Files/autosave — see **Recently closed** below). 572 tests, ~92% logic coverage, CI green; everything still listed is deliberately deferred, not forgotten.
 
 **Still deferred**
 - **Collaboration & cloud** (Phase 8) — real-time multiplayer, presence, cursors, follow mode. Not started; the data model (deltas, fractional indices, version nonces) is built collab-ready.

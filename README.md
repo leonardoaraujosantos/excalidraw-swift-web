@@ -2,7 +2,7 @@
 
 A native iOS (iPhone + iPad) port of [Excalidraw](https://excalidraw.com) in Swift / SwiftUI, aiming for feature parity with the web app, first-class Apple Pencil support, and finger-friendly UX.
 
-> Status: **feature-complete for single-user editing** (roadmap Phases 0–7 done, plus tables & charts, plus Phase 7.5 rendering acceleration incl. a Metal GPU backend). Runs on the iPhone + iPad simulators and device. 534 tests passing, ~94% logic coverage, CI green. Remaining work is collaboration (Phase 8, optional) and a set of tracked gaps — see **[Known gaps](#known-gaps)** below and the consolidated list in [docs/ROADMAP.md](docs/ROADMAP.md#known-gaps--deferred-items).
+> Status: **feature-complete for single-user editing** (roadmap Phases 0–7 done, plus tables & charts, plus Phase 7.5 rendering acceleration incl. a Metal GPU backend). Runs on the iPhone + iPad simulators and device. 572 tests passing, ~92% logic coverage, CI green. Remaining work is collaboration (Phase 8, optional) and a set of tracked gaps — see **[Known gaps](#known-gaps)** below and the consolidated list in [docs/ROADMAP.md](docs/ROADMAP.md#known-gaps--deferred-items).
 
 ## What works today
 - **Drawing & tools:** rectangle, diamond, ellipse, line, arrow (incl. **elbow/orthogonal** arrows with draggable fixed segments), freedraw (pressure), text, image, eraser, hand, frames, **sticky notes**, **tables**, **charts** (bar/line).
