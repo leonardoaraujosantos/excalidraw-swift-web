@@ -13,7 +13,7 @@ web/
 ├── packages/
 │   ├── math/      @xs/math — points, vectors, angles, curves, geometry  ✅ T0
 │   ├── model/     @xs/model — element schema, scene, .excalidraw codecs ✅ T1
-│   ├── geometry/  @xs/geometry — bounds, hit-test, snapping, elbow        (T2)
+│   ├── geometry/  @xs/geometry — bounds, hit-test, snapping, frames     🟡 T2
 │   ├── render/    @xs/render — Canvas2D renderer, export                  (T3)
 │   ├── editor/    @xs/editor — tools, selection, generators, smart        (T4)
 │   ├── svelte/    @xs/svelte — Svelte 5 runes store + components          (T5)
@@ -44,3 +44,9 @@ pnpm lint          # biome
   39 tests, including a **cross-language round-trip** that reads the shared
   `../Fixtures/*.excalidraw` and asserts the re-encode is semantically
   diff-clean against the Swift-authored source.
+- **T2 — Geometry (in progress):** `@xs/geometry` ported from
+  `ExcalidrawGeometry` — `BoundingBox`, rotation-aware element bounds + outline
+  extraction, hit-testing (`shouldTestInside`/`hit`/`distance`), arrow binding,
+  cardinal `Heading`s, viewport culling, dirty regions, frame containment,
+  object + gap snapping, and the Snap-to-Shape `ShapeGenerator`. 48 tests.
+  Still to port: the elbow-arrow A\* router and the freehand shape recognizer.

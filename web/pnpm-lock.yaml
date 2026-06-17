@@ -18,7 +18,26 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9
 
+  packages/geometry:
+    dependencies:
+      '@xs/math':
+        specifier: workspace:*
+        version: link:../math
+      '@xs/model':
+        specifier: workspace:*
+        version: link:../model
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/math:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/model:
     devDependencies:
       typescript:
         specifier: ^5.7.2
