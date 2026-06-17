@@ -591,6 +591,8 @@ public final class EditorModel: ObservableObject {
     @Published public var showChartInput = false
     @Published public var chartValuesText = ""
     @Published public var chartKind: ChartKind = .bar
+    @Published public var showMermaidInput = false
+    @Published public var mermaidText = ""
 
     /// Insert a chart from comma/space/newline-separated numbers in
     /// `chartValuesText`, centred in the view, then close the input.
