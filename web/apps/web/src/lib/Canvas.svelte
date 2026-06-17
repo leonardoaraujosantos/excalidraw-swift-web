@@ -78,6 +78,7 @@
     store.pointer("down", toScene(e), opts(e));
   }
   function onPointerMove(e: PointerEvent): void {
+    store.trackPointer(toScene(e)); // broadcast cursor for presence (no-op when solo)
     if (!down) return;
     store.pointer("move", toScene(e), opts(e));
   }

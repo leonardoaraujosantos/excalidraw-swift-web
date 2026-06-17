@@ -153,6 +153,24 @@ export class EditorStore {
     else if (phase === "move") this.controller.pointerMove(event);
     else this.controller.pointerUp(event);
     this.bump();
+
+    if (this.collab !== null) {
+      this.collab.sendPointer({ x: scenePoint.x, y: scenePoint.y });
+      if (phase === "up") {
+        this.collab.sendPresence({
+          pointer: { x: scenePoint.x, y: scenePoint.y },
+          selectedIds: [...this.controller.selectedIDs],
+          tool: this.activeTool,
+        });
+      }
+    }
+  }
+
+  /** Broadcast the cursor without a click — for hover/move tracking from the UI. */
+  trackPointer(viewPoint: Point): void {
+    if (this.collab === null) return;
+    const p = this.viewport.viewToScene(viewPoint);
+    this.collab.sendPointer({ x: p.x, y: p.y });
   }
 
   // MARK: Viewport
@@ -496,6 +514,8 @@ export class EditorStore {
    * `version`/`versionNonce`. Returns the session.
    */
   startCollab(socket: CollabSocket, peer: Peer, room: string): CollabSession {
+    // Namespace this client's generated ids so two peers never collide.
+    this.controller.idPrefix = `${peer.id}-`;
     const session = new CollabSession(socket, peer, room, {
       onScene: (elements) => this.applyRemoteScene(elements),
       onRemoteElements: (elements) => this.applyRemoteElements(elements),
@@ -627,6 +647,14 @@ export class EditorStore {
       now,
       laserDots: this.trail.visibleLaser(now),
       eraserDots: this.trail.visibleEraser(now),
+      remoteCursors: this.remoteCursors
+        .filter((rc) => rc.pointer !== null)
+        .map((rc) => ({
+          color: rc.peer.color,
+          name: rc.peer.name,
+          x: rc.pointer!.x,
+          y: rc.pointer!.y,
+        })),
     });
   }
 

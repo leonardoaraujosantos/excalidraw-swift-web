@@ -1,12 +1,26 @@
 <script lang="ts">
   import type { Tool } from "@xs/editor";
   import type { FillStyle } from "@xs/model";
-  import { EditorStore } from "@xs/svelte";
+  import { EditorStore, browserSocket } from "@xs/svelte";
   import Canvas from "./lib/Canvas.svelte";
 
   const store = new EditorStore();
   // Expose the store for end-to-end tests to assert against the scene.
   (window as unknown as { __store?: EditorStore }).__store = store;
+
+  // Auto-join a collaboration room from the URL: ?relay=ws://…&room=…&name=…
+  const params = new URLSearchParams(location.search);
+  const relayUrl = params.get("relay");
+  const roomName = params.get("room");
+  if (relayUrl !== null && roomName !== null) {
+    const palette = ["#e64980", "#4263eb", "#0ca678", "#f08c00", "#ae3ec9"];
+    const peer = {
+      id: `web-${Math.random().toString(36).slice(2, 8)}`,
+      name: params.get("name") ?? "Guest",
+      color: palette[Math.floor(Math.random() * palette.length)]!,
+    };
+    store.startCollab(browserSocket(relayUrl), peer, roomName);
+  }
   // The store is plain TS, so its reads aren't reactive on their own. Poll the
   // revision counter and expose store-derived UI state through `view`, which
   // re-derives whenever `rev` changes (fine-grained reactivity in runes mode).
@@ -29,6 +43,7 @@
       editing: store.editingText,
       table: store.selectedTableGroup,
       chart: store.editingChart,
+      peers: store.collab === null ? [] : [...store.collab.peers.values()],
     };
   });
 
@@ -241,6 +256,13 @@
     <span class="sep"></span>
     <span data-testid="selection-stats">{view.stats ?? ""}</span>
     <span class="grow"></span>
+    {#if view.peers.length > 0}
+      <span class="peers" data-testid="peers">
+        {#each view.peers as p (p.id)}
+          <span class="peer" style="background:{p.color}" title={p.name}>{p.name}</span>
+        {/each}
+      </span>
+    {/if}
     <button data-testid="theme" onclick={() => store.toggleTheme()}>{view.theme === "light" ? "🌙" : "☀️"}</button>
     <button data-testid="export-svg" onclick={downloadSvg}>Export SVG</button>
     <button data-testid="save" onclick={downloadJson}>Save</button>
@@ -281,6 +303,8 @@
   }
   .app[data-theme="dark"] .chart-editor { background: #2a2a2a; color: #eee; }
   .chart-editor input[type="text"] { width: 140px; }
+  .peers { display: inline-flex; gap: 4px; }
+  .peer { color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
   .sep { width: 1px; align-self: stretch; background: #0002; margin: 0 4px; }
   .grow { flex: 1; }
   label { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; }

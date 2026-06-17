@@ -206,8 +206,26 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     `@xs/protocol` so late joiners receive the latest scene and a stale update
     can't clobber a newer element; disconnect emits `peer-left` and drops empty
     rooms. 10 tests (8 `RelayCore` unit + 2 end-to-end over real `ws` sockets).
-    Still to do: presence/cursor UI wired into the `EditorStore`, and the Swift
-    client.
+  - **T7 slice 3 — cross-platform client (iOS ⇄ web).** `CollabSession` in
+    `@xs/svelte` (transport-agnostic over a `CollabSocket`; `browserSocket` for
+    the DOM, `ws` in tests) joins a room, broadcasts only changed elements
+    (version-diffed, no echo), applies remote batches reconciled by
+    `version`/`versionNonce` (without polluting local undo, via `Store.rebase`),
+    and tracks peer presence/cursors. Wired into `EditorStore`
+    (`startCollab`/`stopCollab`), the `apps/web` example auto-joins from
+    `?relay=…&room=…&name=…` and renders remote cursors + a peer roster. The
+    Swift twin lives in `Sources/ExcalidrawCollab` (`CollabMessage`, `Reconcile`,
+    a `URLSessionWebSocketTask` `CollabClient`). The two speak a **byte-identical
+    wire format**, locked by the shared `Fixtures/protocol/*.json` corpus that
+    **both** test suites assert against. A real collab bug surfaced + fixed:
+    element ids collided across clients (both minted `el-N`), so a new element
+    lost reconciliation — clients now namespace ids per peer. Tests: TS
+    CollabSession unit, `EditorStore` collab wiring, an end-to-end integration
+    over the real relay with simulated devices (two sessions converge, stale
+    edits lose, a raw-protocol "Swift" client interoperates), a **two-browser**
+    Playwright test (live convergence + presence), wire conformance; Swift
+    reconcile parity + byte-identical fixture conformance. The library is now
+    **feature-complete with a working collaborative web example**.
   - **Mermaid + tables hardening:** a Playwright pass over the generators
     surfaced and fixed a label bug — container-bound text (Mermaid nodes, table
     cells) rendered **left-aligned** because centring keyed on the stored cell

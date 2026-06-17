@@ -96,12 +96,19 @@ export class EditorController {
   private interaction: Interaction = { kind: "idle" };
   private readonly nextID: () => string;
   private readonly nextSeed: () => number;
+  /**
+   * Prefix for generated element ids. Set to a per-client value (e.g. the peer
+   * id) during collaboration so two clients never mint colliding ids — a
+   * collision would make one client's new element lose reconciliation against
+   * the other's same-id element.
+   */
+  idPrefix = "";
 
   constructor(scene: Scene = new Scene(), idProvider?: () => string, seedProvider?: () => number) {
     this.store = new Store(scene);
     let idCounter = 0;
     let seedCounter = 1;
-    this.nextID = idProvider ?? (() => `el-${++idCounter}`);
+    this.nextID = idProvider ?? (() => `${this.idPrefix}el-${++idCounter}`);
     this.nextSeed = seedProvider ?? (() => ++seedCounter * 100_001);
   }
 

@@ -33,6 +33,8 @@ export interface OverlayOptions {
   now?: number;
   laserDots?: TrailDot[];
   eraserDots?: TrailDot[];
+  /** Remote collaborators' cursors (scene coords), drawn in each peer's colour. */
+  remoteCursors?: { color: string; name: string; x: number; y: number }[];
 }
 
 const TRAIL_FADE = 0.7;
@@ -162,6 +164,21 @@ export function renderOverlay(ctx: RenderContext, o: OverlayOptions): void {
   const now = o.now ?? 0;
   drawTrail(ctx, o.laserDots ?? [], now, "#ff2d2d", 4 / v.zoom);
   drawTrail(ctx, o.eraserDots ?? [], now, "#9aa0a6", 10 / v.zoom);
+
+  for (const cursor of o.remoteCursors ?? []) {
+    const s = 1 / v.zoom;
+    // A small arrowhead pointing up-left at the cursor position.
+    ctx.beginPath();
+    ctx.moveTo(cursor.x, cursor.y);
+    ctx.lineTo(cursor.x + 12 * s, cursor.y + 4 * s);
+    ctx.lineTo(cursor.x + 4 * s, cursor.y + 12 * s);
+    ctx.closePath();
+    ctx.fillStyle = cursor.color;
+    ctx.fill();
+    // Name tag.
+    ctx.font = `${12 * s}px sans-serif`;
+    ctx.fillText(cursor.name, cursor.x + 14 * s, cursor.y + 20 * s);
+  }
 
   ctx.restore();
 }

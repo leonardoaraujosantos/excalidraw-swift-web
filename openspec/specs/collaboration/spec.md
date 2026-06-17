@@ -41,6 +41,13 @@ copy it held locally.
 - THEN the reconciliation rule SHALL resolve it by `version` / `versionNonce`,
   identically on both clients.
 
+#### Scenario: Per-client unique element ids
+- GIVEN two clients editing the same room
+- WHEN each creates a new element
+- THEN the clients SHALL mint element ids from disjoint namespaces (e.g. a
+  per-peer prefix), so a new element never collides with another client's
+  element and loses reconciliation.
+
 #### Scenario: Merge a remote batch
 - WHEN a client reconciles an incoming batch of remote elements against its
   local set

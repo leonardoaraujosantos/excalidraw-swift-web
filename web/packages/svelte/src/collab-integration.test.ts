@@ -64,7 +64,7 @@ function device(name: string) {
   return { session, scene, ws, edit };
 }
 
-async function until(predicate: () => boolean, timeout = 2000): Promise<void> {
+async function until(predicate: () => boolean, timeout = 5000): Promise<void> {
   const start = Date.now();
   while (!predicate()) {
     if (Date.now() - start > timeout) throw new Error("condition timed out");

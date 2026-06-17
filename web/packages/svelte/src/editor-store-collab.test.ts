@@ -95,6 +95,30 @@ describe("EditorStore collaboration", () => {
     expect(store.scene.element("x")?.width).toBe(99);
   });
 
+  it("namespaces generated ids per peer to avoid collisions (regression)", () => {
+    const make = (peerId: string): EditorStore => {
+      const store = new EditorStore();
+      const socket = new FakeSocket();
+      store.startCollab(socket, { id: peerId, name: peerId, color: "#000" }, "room");
+      socket.open();
+      socket.deliver(message("room-state", { protocol: 1, you: peerId, peers: [], elements: [] }));
+      return store;
+    };
+    const draw = (store: EditorStore): string => {
+      store.selectTool("rectangle");
+      store.pointer("down", new Point(10, 10));
+      store.pointer("move", new Point(50, 50));
+      store.pointer("up", new Point(50, 50));
+      return store.scene.visibleElements.find((e) => e.type === "rectangle")!.id;
+    };
+
+    const aliceId = draw(make("alice"));
+    const bobId = draw(make("bob"));
+    expect(aliceId).not.toBe(bobId); // would collide without per-peer prefixes
+    expect(aliceId.startsWith("alice-")).toBe(true);
+    expect(bobId.startsWith("bob-")).toBe(true);
+  });
+
   it("loads a room snapshot on join", () => {
     const store = new EditorStore();
     const socket = new FakeSocket();
