@@ -86,7 +86,7 @@ Alternative: a separate `excalidraw-web` repo that vendors `fixtures/` + `opensp
 
 ## 5. Capability → package coverage
 
-The 14 baseline specs map onto the TS packages so coverage is auditable:
+The 15 baseline specs map onto the TS packages so coverage is auditable:
 
 | OpenSpec capability | Primary TS package |
 |---|---|
@@ -98,7 +98,7 @@ The 14 baseline specs map onto the TS packages so coverage is auditable:
 | drawing-tools · selection-and-transform · arrows-and-bindings · smart-features · generators | `@xs/editor` |
 | persistence | `@xs/model` (codecs) + `@xs/svelte` (File System Access API, autosave) |
 | platform-ux | `@xs/svelte` + `apps/web` |
-| *(Phase 8 new)* collaboration | `@xs/protocol` + `server/` + clients |
+| collaboration | `@xs/protocol` + `server/` + clients (web `@xs/svelte`, Swift `ExcalidrawCollab`) |
 
 ---
 

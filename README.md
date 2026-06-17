@@ -1,72 +1,133 @@
-# Excalidraw-Swift
+# Excalidraw — Native Swift + TypeScript/Svelte port
 
-A native iOS (iPhone + iPad) port of [Excalidraw](https://excalidraw.com) in Swift / SwiftUI, aiming for feature parity with the web app, first-class Apple Pencil support, and finger-friendly UX.
+Two from-scratch ports of [Excalidraw](https://excalidraw.com), built as **twins** that share one data model, the same `.excalidraw` v2 file format, a language-neutral [OpenSpec](openspec/) contract, and a custom WebSocket **collaboration protocol** — so they edit the same scene together:
 
-> Status: **feature-complete for single-user editing** (roadmap Phases 0–7 done, plus tables & charts, plus Phase 7.5 rendering acceleration incl. a Metal GPU backend). Runs on the iPhone + iPad simulators and device. 572 tests passing, ~92% logic coverage, CI green. Remaining work is collaboration (Phase 8, optional) and a set of tracked gaps — see **[Known gaps](#known-gaps)** below and the consolidated list in [docs/ROADMAP.md](docs/ROADMAP.md#known-gaps--deferred-items).
+- **Native iOS / iPadOS** in **Swift / SwiftUI** (`Sources/`, `App/`) — first-class Apple Pencil, finger-friendly UX, Core Graphics + an optional **Metal** GPU renderer.
+- **Web** in **TypeScript + Svelte 5** (`web/` pnpm workspace) — Canvas2D, reusing the upstream `roughjs` / `perfect-freehand` the Swift side re-ported.
 
-## What works today
-- **Drawing & tools:** rectangle, diamond, ellipse, line, arrow (incl. **elbow/orthogonal** arrows with draggable fixed segments), freedraw (pressure), text, image, eraser, hand, frames, **sticky notes**, **tables**, **charts** (bar/line).
-- **Hand-drawn rendering:** `RoughKit` (rough.js port, numeric parity validated), all fill styles, **sloppiness** (architect/artist/cartoonist), sharp/round edges, splined multi-point lines, rounded rectangles.
-- **Rendering backends:** Core Graphics (default) + an optional **Metal GPU renderer** (`ExcalidrawMetal`), runtime-switchable via a footer toggle with automatic CG fallback. Layered static/dynamic split + gesture snapshots keep the CPU path smooth; the GPU path tessellates shapes/freedraw/dashed strokes/images and (in the editor) presents direct-to-`CAMetalLayer` with a CG overlay for crisp text. An in-app benchmark screen compares CPU vs Metal vs Direct vs the editor hybrid across every component type. See [Phase 7.5](docs/ROADMAP.md#phase-75--rendering-acceleration--performance).
-- **Editing:** select/multi-select, group-aware selection, move/resize/rotate, **font scales on resize**, undo/redo, copy/paste, z-order, align, flip, group/ungroup, lock, duplicate.
-- **Smart features:** object + gap snapping, arrow↔shape binding, **freehand shape recognition** ("Snap to Shape": rectangle/ellipse/diamond/triangle/line/pentagon/hexagon/star/heart/cloud/speech-bubble, hold-to-snap), flowchart node spawning, interactive image crop, element hyperlinks.
-- **Platform:** size-class-adaptive iPhone/iPad UI, dark mode, zen mode, command palette, hardware-keyboard shortcuts, two-finger pan/zoom, palm rejection, localization infra (en/es/ar incl. RTL).
-- **Generators & embeds:** **Mermaid → diagram** (paste a flowchart), **live web embeddables** (`WKWebView` behind a host allow-list), tables, charts, sticky notes, flowchart nodes.
-- **Tools & polish:** arrowhead-type picker, custom color picker (+ system eyedropper), **laser pointer** + animated eraser trail, Apple Pencil hover (17.5+) & Pencil Pro squeeze.
-- **Files:** `.excalidraw` / `.excalidrawlib` round-trip; Files-app open/save + **autosave + recents**; **PNG scene-embed round-trip** (re-open a drawing from its exported PNG); PNG & SVG export; on-disk library.
+> **Status: both implementations feature-complete, and real-time iPad ↔ browser collaboration is delivered.** An iPad simulator and a browser join one room over a Node relay and converge live — verified end-to-end (XCUITest + Playwright). **599 Swift tests** (~92% logic coverage) · **409 web unit tests + 16 Playwright E2E** · CI green on both pipelines. Remaining work is a small set of tracked gaps — see **[Known gaps](#known-gaps)**.
+
+---
+
+## Features
+
+Unless noted, features exist in **both** implementations (the editor engine, model, geometry, and rendering math are ported 1:1).
+
+### Drawing & tools
+Rectangle, diamond, ellipse, line, arrow (incl. **elbow / orthogonal** arrows with draggable fixed segments), freedraw (pressure), text, image, eraser, hand, frames, **sticky notes**, **tables**, **charts** (bar / line).
+
+### Hand-drawn rendering
+The rough.js look with numeric parity locked across languages: Swift `RoughKit` (a rough.js re-port) and the web's upstream `roughjs` produce **byte-identical op-sets** at fixed seeds. All fill styles (hachure / cross-hatch / solid / zigzag), **sloppiness** (architect / artist / cartoonist), sharp/round edges, splined multi-point lines, rounded rectangles, and arrowheads.
+
+### Editing
+Select / multi-select, group-aware selection, move / resize / rotate (**font scales on resize**), undo/redo, copy/paste, z-order, align, flip, group/ungroup, lock, duplicate, on-canvas text editing, and **linear point ("spline") editing** (double-click a line/arrow to drag vertices and split midpoints).
+
+### Smart features
+Object + gap **snapping** with guides, arrow↔shape **binding** (re-routes on move/resize), **freehand shape recognition** ("Snap to Shape": rectangle / ellipse / diamond / triangle / line / pentagon / hexagon / star / heart / cloud / speech-bubble, hold-to-snap), **flowchart** node spawning, interactive **image crop**, and element **hyperlinks**.
+
+### Generators & embeds
+**Mermaid → diagram** (paste a flowchart), **tables** (with add-row / add-column), **charts** (double-click to change plot type + data), **sticky notes**, flowchart nodes. The Swift app also renders **live web embeddables** (`WKWebView` behind a host allow-list).
+
+### Real-time collaboration (iPad ↔ browser)
+A custom WebSocket protocol (`@xs/protocol` / Swift `ExcalidrawCollab`) spoken **byte-identically** by both clients and locked by a shared `Fixtures/protocol/` corpus. A Node relay (`web/server/`) handles rooms, presence, and a scene snapshot for late joiners. Concurrent edits resolve with the model's deterministic, symmetric **`version` / `versionNonce`** last-writer-wins reconciliation — identical on both sides, no central authority or CRDT. Live **peer cursors / selection / tool** presence, per-peer id namespacing, and **auto-reconnect** that resyncs without losing offline edits.
+
+### Files & export
+`.excalidraw` / `.excalidrawlib` round-trip with excalidraw.com (canonical, sorted-key JSON — byte-compatible across both languages); **SVG** export; **PNG** export with **`tEXt` scene-embed round-trip** (re-open a drawing from its exported PNG). The Swift app adds Files-app open/save + **autosave + recents** and an on-disk library.
+
+### Platform polish
+- **Swift app:** size-class-adaptive iPhone/iPad UI, dark mode, zen mode, command palette, hardware-keyboard shortcuts, two-finger pan/zoom, palm rejection, **Apple Pencil hover (17.5+) & Pencil Pro squeeze**, **laser pointer** + animated eraser trail, arrowhead-type picker, custom color picker (+ system eyedropper), localization (en/es/ar incl. RTL).
+- **Web app:** full toolbar / properties / generators, pointer + wheel pan/zoom, on-canvas text editing, fill-pattern selector, laser/eraser trails, zoom + theme toggle, SVG/`.excalidraw` export, and the live-collaboration UI (peer roster + remote cursors).
+
+### Rendering backends
+- **Swift:** Core Graphics (default) + an optional **Metal GPU renderer** (`ExcalidrawMetal`), runtime-switchable with automatic CG fallback; layered static/dynamic split + gesture snapshots; an in-app CPU-vs-GPU benchmark. See [Phase 7.5](docs/ROADMAP.md#phase-75--rendering-acceleration--performance).
+- **Web:** Canvas2D (`@xs/render`) with `roughjs` + `perfect-freehand`; SVG export and PNG scene-embed.
+
+---
+
+## Two implementations, one contract
+
+The risk in maintaining twins is silent drift. Mitigations, enforced in CI:
+
+- **OpenSpec is the contract.** Both implementations are built against the [`openspec/specs/`](openspec/specs/) baseline (15 capabilities). A behavior change goes through OpenSpec once and lands in both.
+- **Shared golden fixtures** in [`Fixtures/`](Fixtures/): `.excalidraw` scenes (serialization parity), rough.js op-sets at fixed seeds (render-geometry parity), canonical-JSON / SVG goldens, and `protocol/*.json` wire frames — each asserted by **both** the Swift `XCTest` and the TypeScript `Vitest` suites.
+- **Reuse where parity is free.** The web build uses the original `roughjs` / `perfect-freehand` npm packages; the Swift side re-ported them and validated numeric parity against the same references.
 
 <a name="known-gaps"></a>
-## Known gaps (not yet implemented)
-Tracked deferrals, in sync with the code. Full detail in [docs/ROADMAP.md](docs/ROADMAP.md#known-gaps--deferred-items). Most of the original long tail (Mermaid, embeddables, PNG re-open, pickers, laser/eraser, fonts infra, Pencil, Files/autosave) is now shipped — see [Recently closed](#recently-closed).
-- **Collaboration / cloud** (Phase 8) — multiplayer, presence, cursors (data model is collab-ready).
-- **Fidelity** — the **bundled Excalidraw font files** themselves aren't committed (loading + family mapping is wired, so dropping the `.ttf/.otf` into the app bundle takes effect; until then text uses system fallbacks). Hachure fill and perfect-freehand outlines are visually faithful, not line-identical.
-- **Rendering** — text stays on the Core Graphics overlay by design (a GPU glyph atlas would pixelate at zoom; SDF GPU text is a possible future option); the GPU path repaints the full viewport (ignores the incremental-redraw `clip` — idempotent, perf-only).
-- **Documents** — uses Files-app open/save (`fileImporter`/`fileExporter`) + autosave + recents rather than a full `DocumentGroup` browser-on-launch (which would replace the single-editor shell).
+## Known gaps (deferred)
+In sync with the code; full detail in [docs/ROADMAP.md](docs/ROADMAP.md#known-gaps--deferred-items).
+- **Collaboration tail** — relay scene persistence is **in-memory** (durable / Redis deferred); **end-to-end encryption** and **follow mode** deferred.
+- **Fidelity** — the **bundled Excalidraw font files** aren't committed (loading + family mapping is wired, so dropping the `.ttf/.otf` in takes effect; until then text uses system fallbacks). Hachure fill and perfect-freehand outlines are visually faithful, not line-identical. Canvas2D vs Core Graphics rendering is tolerance-bounded, not pixel-identical (the hand-drawn geometry that produces it is byte-identical).
+- **Web rendering tiers** — a `@xs/render-webgl` GPU tier is deferred (Canvas2D ships); a headless PNG **rasterizer** is deferred (PNG scene-embed metadata round-trips today).
+- **Swift documents** — Files-app open/save + autosave + recents rather than a full `DocumentGroup` browser-on-launch.
 
-<a name="recently-closed"></a>
-### Recently closed
-Arrowhead-type picker · custom color picker + eyedropper · laser pointer + animated eraser trail · **PNG scene-embed round-trip** (re-open a drawing from an exported PNG) · **Mermaid → diagram** parser · **live `WKWebView` embeddables** (host allow-list) · Files-app open/save + autosave + recents · **font-loading infrastructure** · **Apple Pencil hover** (17.5+) + Pencil Pro squeeze · Metal GPU renderer (Phase 7.5).
+---
 
-## Design decisions
-- **Rendering:** SwiftUI `Canvas` + Core Graphics (static scene + interactive overlay), with a Swift port of rough.js (`RoughKit`) for the hand-drawn look; an optional Metal GPU backend (`ExcalidrawMetal`) is swappable at runtime behind a `SceneRendering` protocol, with CG as the default and automatic fallback.
-- **Minimum OS:** iOS 17+ (`@Observable`, mature Canvas, Apple Pencil hover on 17.5+).
-- **Delivery:** vertical-slice-first — a thin end-to-end path early, then widen.
-- **Quality:** >90% test coverage, golden-image render tests, XCUITest e2e on iPhone + iPad.
-- **Compatibility:** `.excalidraw` / `.excalidrawlib` round-trip with excalidraw.com.
+## Repository layout
 
-## Documents
-- **[docs/INVESTIGATION.md](docs/INVESTIGATION.md)** — analysis of the upstream source: data model, file format, rendering pipeline, interaction model, geometry/math, and full feature inventory.
-- **[docs/PLAN.md](docs/PLAN.md)** — architecture, Swift package structure, key design decisions, testing strategy, risks.
-- **[docs/ROADMAP.md](docs/ROADMAP.md)** — phased delivery plan (Phase 0 foundations → Phase 8 collaboration), with per-phase status and a consolidated **[Known gaps & deferred items](docs/ROADMAP.md#known-gaps--deferred-items)** list.
-- **[docs/TYPESCRIPT_SVELTE_PORT.md](docs/TYPESCRIPT_SVELTE_PORT.md)** — roadmap for a TypeScript + Svelte 5 twin of the library, so that in Phase 8 iOS and web-browser clients collaborate over a custom WebSocket protocol.
-- **[openspec/](openspec/)** — language-neutral OpenSpec baseline specs (14 capabilities) that both the Swift app and the TypeScript twin are built against.
+```
+excalidraw-swift/
+├── Sources/            Swift packages (the iOS/iPad implementation)
+│   ├── ExcalidrawMath · ExcalidrawModel · ExcalidrawGeometry
+│   ├── RoughKit · FreehandKit · ExcalidrawRender · ExcalidrawMetal
+│   ├── ExcalidrawEditor · ExcalidrawCollab · ExcalidrawUI
+├── App/                the SwiftUI app shell (ExcalidrawApp)
+├── web/                TypeScript + Svelte 5 twin (pnpm workspace)
+│   ├── packages/       @xs/math · model · geometry · render · editor · svelte · protocol
+│   ├── apps/web/       the browser app (Vite + Svelte 5)
+│   └── server/         @xs/server — Node WebSocket relay
+├── openspec/specs/     language-neutral baseline specs (the shared contract)
+├── Fixtures/           shared golden fixtures (scenes, rough seeds, protocol wire)
+└── docs/               investigation, plan, roadmaps
+```
 
-## Building
+### Swift architecture
+Layered, framework-light core (pure Swift, simulator-independent) under a thin SwiftUI shell:
 
-Open **`ExcalidrawSwift.xcodeproj`** and run the `ExcalidrawApp` scheme. The
-project is committed to the repo (it's generated from `project.yml` via
-[XcodeGen](https://github.com/yonsm/XcodeGen) but kept in git so it's stable).
-The libraries also build and test without Xcode via `swift build` / `swift test`.
+`ExcalidrawMath` → `ExcalidrawModel` → `ExcalidrawGeometry` · `RoughKit` · `FreehandKit` → `ExcalidrawRender` → `ExcalidrawMetal` · `ExcalidrawEditor` · `ExcalidrawCollab` → `ExcalidrawUI` → `ExcalidrawApp`
 
-Regenerate the project only after changing `Package.swift` (targets/products)
-or `project.yml`, then commit the result:
+(`ExcalidrawEditor` is the pure, UIKit-free editor state machine; `ExcalidrawCollab` is the collaboration client + protocol; `ExcalidrawMetal` is the optional GPU renderer behind the same `SceneRendering` protocol as the Core Graphics `SceneRenderer`. All bridged to SwiftUI by `ExcalidrawUI`'s `EditorModel`.)
+
+### Web architecture
+A pure TS core under a thin Svelte 5 runes layer, mirroring the Swift split: `@xs/editor` (pure state machine) under `@xs/svelte` (`EditorStore` runes bridge), with `@xs/render` (Canvas2D), `@xs/protocol` (collaboration), and the `@xs/server` relay.
+
+---
+
+## Building & running
+
+### iOS / iPadOS (Swift)
+Open **`ExcalidrawSwift.xcodeproj`** and run the `ExcalidrawApp` scheme. The libraries also build/test without Xcode via `swift build` / `swift test`. The project is generated from `project.yml` via [XcodeGen](https://github.com/yonsm/XcodeGen) but committed for stability; regenerate after changing `Package.swift` / `project.yml`:
 
 ```sh
 brew install xcodegen        # once
 ./scripts/generate.sh        # regenerate + clear stale caches
 ```
 
-If Xcode ever reports **"Missing package product"** or **"Couldn't load
-project"**, it's stale package state: run `./scripts/generate.sh` (it clears
-`.swiftpm` and this project's DerivedData), then **quit and reopen**
-`ExcalidrawSwift.xcodeproj` — open the `.xcodeproj`, not the folder or
-`Package.swift`.
+### Web (TypeScript + Svelte 5)
+Requires Node ≥ 20.19 and pnpm 10.
 
-## Architecture at a glance
-Layered, framework-light core (pure Swift, simulator-independent) under a thin SwiftUI shell:
+```sh
+cd web
+pnpm install
+pnpm test          # vitest across all packages
+pnpm typecheck     # tsc --noEmit per package
+pnpm lint          # biome
+pnpm --filter excalidraw-web-app dev          # run the app
+pnpm --filter excalidraw-web-app e2e          # Playwright end-to-end
+```
 
-`ExcalidrawMath` → `ExcalidrawModel` → `ExcalidrawGeometry` · `RoughKit` · `FreehandKit` → `ExcalidrawRender` → `ExcalidrawMetal` · `ExcalidrawEditor` → `ExcalidrawUI` → `ExcalidrawApp`
+### Live cross-platform collaboration (macOS + Xcode)
+Starts a relay, joins a browser (Playwright) and the real SwiftUI app in an iOS simulator to one room, and asserts both converge:
 
-(`ExcalidrawEditor` is the pure, UIKit-free editor state machine — tools, selection/transform, undo, and all the generators/algorithms — bridged to SwiftUI by `ExcalidrawUI`'s `EditorModel`. `ExcalidrawMetal` is the optional GPU renderer — scene→triangle tessellation, an image texture cache, and the `CAMetalLayer` present path — behind the same `SceneRendering` protocol as the Core Graphics `SceneRenderer`.)
+```sh
+web/scripts/collab-live.sh   # requires xcodegen
+```
 
-See [PLAN.md §2](docs/PLAN.md) for details.
+---
+
+## Documents
+- **[docs/INVESTIGATION.md](docs/INVESTIGATION.md)** — analysis of the upstream source: data model, file format, rendering, interaction, geometry/math, full feature inventory.
+- **[docs/PLAN.md](docs/PLAN.md)** — Swift architecture, package structure, design decisions, testing strategy, risks.
+- **[docs/ROADMAP.md](docs/ROADMAP.md)** — phased Swift delivery plan (Phase 0 → Phase 8 collaboration) with per-phase status + **[Known gaps & deferred items](docs/ROADMAP.md#known-gaps--deferred-items)**.
+- **[docs/TYPESCRIPT_SVELTE_PORT.md](docs/TYPESCRIPT_SVELTE_PORT.md)** — the TypeScript + Svelte 5 twin roadmap (T0 → T7), delivered.
+- **[web/README.md](web/README.md)** — the web workspace: packages, status, and how to develop/test.
+- **[openspec/](openspec/)** — language-neutral OpenSpec baseline specs (15 capabilities, incl. `collaboration`) both implementations are built against.
