@@ -63,7 +63,7 @@ let package = Package(
         // MARK: UI layer
 
         .target(name: "ExcalidrawCollab", dependencies: ["ExcalidrawModel"]),
-        .target(name: "ExcalidrawUI", dependencies: ["ExcalidrawRender", "ExcalidrawEditor", "ExcalidrawMetal"]),
+        .target(name: "ExcalidrawUI", dependencies: ["ExcalidrawRender", "ExcalidrawEditor", "ExcalidrawMetal", "ExcalidrawCollab"]),
 
         // MARK: Tests (one per library)
 

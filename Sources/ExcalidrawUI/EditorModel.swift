@@ -1,3 +1,4 @@
+import ExcalidrawCollab
 import ExcalidrawEditor
 import ExcalidrawGeometry
 import ExcalidrawMath
@@ -21,7 +22,21 @@ public final class EditorModel: ObservableObject {
     @Published public internal(set) var rendererKind: RendererKind = .coreGraphics
 
     @Published public var viewport: Viewport
-    @Published public internal(set) var revision = 0
+    @Published public internal(set) var revision = 0 {
+        didSet { broadcastLocalChanges() }
+    }
+
+    // MARK: Collaboration state (logic in EditorModel+Collab.swift)
+    /// Active collaboration client (`nil` when editing solo).
+    public internal(set) var collab: CollabClient?
+    /// Sink for outbound element batches — the real client, or a test capture.
+    var collabSend: (([ExcalidrawElement]) -> Void)?
+    /// Per-element version last broadcast, to send only what changed (and avoid echo).
+    var lastBroadcast: [String: Int] = [:]
+    /// Remote collaborators in the room.
+    @Published public internal(set) var remotePeers: [Peer] = []
+    /// Remote collaborators' last cursor positions (scene coords), by peer id.
+    @Published public internal(set) var remoteCursors: [String: PointerPos] = [:]
     @Published public var activeTool: Tool = .selection
     @Published public var strokeColor: String = "#1e1e1e"
     @Published public var strokeWidth: Double = 2
@@ -112,6 +127,17 @@ public final class EditorModel: ObservableObject {
             activeTool = controller.activeTool // tool may revert after creating
         }
         revision += 1
+
+        if let collab {
+            collab.sendPointer(PointerPos(x: scenePoint.x, y: scenePoint.y))
+            if phase == .up {
+                collab.sendPresence(Presence(
+                    pointer: PointerPos(x: scenePoint.x, y: scenePoint.y),
+                    selectedIds: Array(controller.selectedIDs),
+                    tool: activeTool.rawValue
+                ))
+            }
+        }
     }
 
     // MARK: Layered rendering (Phase 7.5 Stage B)
