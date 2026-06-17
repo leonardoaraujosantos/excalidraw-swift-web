@@ -31,6 +31,10 @@ pnpm install
 pnpm test          # vitest across all packages
 pnpm typecheck     # tsc --noEmit per package
 pnpm lint          # biome
+
+# End-to-end (drives the real app in a browser, like the iOS SmokeUITests):
+pnpm --filter excalidraw-web-app exec playwright install chromium   # once
+pnpm --filter excalidraw-web-app e2e                                # screenshots → apps/web/test-results/screens/
 ```
 
 ## Status
@@ -133,3 +137,12 @@ pnpm lint          # biome
     opacity and animated by the canvas. Plus **image import** (file → data-URL →
     downscaled image element) and toolbar **align / flip / z-order** actions.
     5 more tests (TrailStore + laser/eraser via the store).
+  - **T6 — Parity hardening (started):** a **Playwright** E2E suite that drives
+    the real built app in Chromium (mirroring the iOS `SmokeUITests`) and
+    asserts against the live `EditorStore` exposed on `window`: draws every
+    shape tool, box-selects + duplicates + undo/redo, inserts all generators,
+    types on-canvas text, paints a laser trail, zooms, toggles theme, and
+    exports an SVG — capturing a screenshot at each step. It already caught a
+    real bug: in Svelte 5 runes mode the app's UI/canvas didn't repaint on
+    store changes (plain reads aren't tracked) — fixed with a `rev`-keyed
+    `$derived` view. Runs in CI (`web` workflow `e2e` job).

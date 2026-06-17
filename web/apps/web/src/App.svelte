@@ -4,13 +4,29 @@
   import Canvas from "./lib/Canvas.svelte";
 
   const store = new EditorStore();
-  // Re-read reactive bits by touching `revision`.
+  // Expose the store for end-to-end tests to assert against the scene.
+  (window as unknown as { __store?: EditorStore }).__store = store;
+  // The store is plain TS, so its reads aren't reactive on their own. Poll the
+  // revision counter and expose store-derived UI state through `view`, which
+  // re-derives whenever `rev` changes (fine-grained reactivity in runes mode).
   let rev = $state(0);
   $effect(() => {
     const id = setInterval(() => {
       rev = store.revision;
-    }, 60);
+    }, 40);
     return () => clearInterval(id);
+  });
+  const view = $derived.by(() => {
+    void rev;
+    return {
+      tool: store.activeTool,
+      canUndo: store.canUndo,
+      canRedo: store.canRedo,
+      zoom: store.zoomPercent,
+      theme: store.theme,
+      stats: store.selectionStats,
+      editing: store.editingText,
+    };
   });
 
   const tools: { tool: Tool; label: string }[] = [
@@ -116,17 +132,17 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="app" data-theme={store.theme} data-rev={rev}>
+<div class="app" data-theme={view.theme} data-rev={rev}>
   <header class="toolbar">
     {#each tools as t (t.tool)}
-      <button class:active={store.activeTool === t.tool} onclick={() => pick(t.tool)}>{t.label}</button>
+      <button data-testid={`tool-${t.tool}`} class:active={view.tool === t.tool} onclick={() => pick(t.tool)}>{t.label}</button>
     {/each}
     <span class="sep"></span>
-    <button onclick={() => store.insertStickyNote()}>Note</button>
-    <button onclick={() => store.insertTable()}>Table</button>
-    <button onclick={() => store.insertChart([10, 20, 15, 30])}>Chart</button>
-    <button onclick={() => store.insertMermaid(mermaidSample)}>Mermaid</button>
-    <button onclick={() => fileInput.click()}>Image</button>
+    <button data-testid="gen-note" onclick={() => store.insertStickyNote()}>Note</button>
+    <button data-testid="gen-table" onclick={() => store.insertTable()}>Table</button>
+    <button data-testid="gen-chart" onclick={() => store.insertChart([10, 20, 15, 30])}>Chart</button>
+    <button data-testid="gen-mermaid" onclick={() => store.insertMermaid(mermaidSample)}>Mermaid</button>
+    <button data-testid="gen-image" onclick={() => fileInput.click()}>Image</button>
     <input bind:this={fileInput} type="file" accept="image/*" hidden onchange={importImage} />
   </header>
 
@@ -138,11 +154,11 @@
     </label>
     <label><input type="checkbox" bind:checked={elbowed} onchange={() => store.setElbowed(elbowed)} /> Elbow</label>
     <span class="sep"></span>
-    <button onclick={() => store.undo()} disabled={!store.canUndo}>Undo</button>
-    <button onclick={() => store.redo()} disabled={!store.canRedo}>Redo</button>
-    <button onclick={() => store.deleteSelected()}>Delete</button>
-    <button onclick={() => store.duplicate()}>Duplicate</button>
-    <button onclick={() => store.group()}>Group</button>
+    <button data-testid="undo" onclick={() => store.undo()} disabled={!view.canUndo}>Undo</button>
+    <button data-testid="redo" onclick={() => store.redo()} disabled={!view.canRedo}>Redo</button>
+    <button data-testid="delete" onclick={() => store.deleteSelected()}>Delete</button>
+    <button data-testid="duplicate" onclick={() => store.duplicate()}>Duplicate</button>
+    <button data-testid="group" onclick={() => store.group()}>Group</button>
     <button onclick={() => store.ungroup()}>Ungroup</button>
     <span class="sep"></span>
     <button title="Align left" onclick={() => store.align("left")}>⇤</button>
@@ -154,14 +170,15 @@
   </section>
 
   <main class="stage">
-    <Canvas {store} />
-    {#if store.editingText !== null}
+    <Canvas {store} {rev} />
+    {#if view.editing !== null}
       <!-- svelte-ignore a11y_autofocus -->
       <textarea
         class="text-editor"
+        data-testid="text-editor"
         autofocus
-        style="left:{store.editingText.viewX}px;top:{store.editingText.viewY}px"
-        value={store.editingText.value}
+        style="left:{view.editing.viewX}px;top:{view.editing.viewY}px"
+        value={view.editing.value}
         oninput={(e) => store.setEditingText((e.currentTarget as HTMLTextAreaElement).value)}
         onblur={() => store.commitText()}
         onkeydown={(e) => {
@@ -175,15 +192,15 @@
   </main>
 
   <footer class="status">
-    <button onclick={() => store.zoomOut()}>−</button>
-    <button onclick={() => store.resetZoom()}>{store.zoomPercent}%</button>
-    <button onclick={() => store.zoomIn()}>+</button>
+    <button data-testid="zoom-out" onclick={() => store.zoomOut()}>−</button>
+    <button data-testid="zoom-reset" onclick={() => store.resetZoom()}>{view.zoom}%</button>
+    <button data-testid="zoom-in" onclick={() => store.zoomIn()}>+</button>
     <span class="sep"></span>
-    <span>{store.selectionStats ?? ""}</span>
+    <span data-testid="selection-stats">{view.stats ?? ""}</span>
     <span class="grow"></span>
-    <button onclick={() => store.toggleTheme()}>{store.theme === "light" ? "🌙" : "☀️"}</button>
-    <button onclick={downloadSvg}>Export SVG</button>
-    <button onclick={downloadJson}>Save</button>
+    <button data-testid="theme" onclick={() => store.toggleTheme()}>{view.theme === "light" ? "🌙" : "☀️"}</button>
+    <button data-testid="export-svg" onclick={downloadSvg}>Export SVG</button>
+    <button data-testid="save" onclick={downloadJson}>Save</button>
   </footer>
 </div>
 

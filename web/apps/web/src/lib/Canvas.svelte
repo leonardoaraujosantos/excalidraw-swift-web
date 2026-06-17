@@ -3,7 +3,7 @@
   import type { EditorStore } from "@xs/svelte";
   import type { PointerType } from "@xs/editor";
 
-  let { store }: { store: EditorStore } = $props();
+  let { store, rev }: { store: EditorStore; rev: number } = $props();
 
   let canvas: HTMLCanvasElement;
   let wrapper: HTMLDivElement;
@@ -24,10 +24,9 @@
     store.renderOverlay(rc, width, height);
   }
 
-  // Redraw whenever the scene revision, theme, or size changes.
+  // Redraw whenever the scene revision (via `rev`), theme, or size changes.
   $effect(() => {
-    void store.revision;
-    void store.theme;
+    void rev;
     void width;
     void height;
     draw();
@@ -35,7 +34,7 @@
 
   // Animate the fading laser/eraser trails while one is active.
   $effect(() => {
-    void store.revision;
+    void rev;
     if (store.activeTool !== "laser" && store.activeTool !== "eraser") return;
     let raf = 0;
     const tick = (): void => {
@@ -101,6 +100,7 @@
 <div bind:this={wrapper} class="canvas-wrap">
   <canvas
     bind:this={canvas}
+    data-testid="canvas"
     style="width:{width}px;height:{height}px"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}

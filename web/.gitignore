@@ -5,3 +5,8 @@ coverage/
 *.tsbuildinfo
 .svelte-kit/
 .DS_Store
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/
