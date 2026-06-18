@@ -64,6 +64,23 @@ public extension EditorModel {
         remoteCursors = [:]
     }
 
+    /// Surface remote presence from an embedder's own collaboration transport
+    /// (the Swift parity of the web `externalCursors` bridge). Adopters wiring a
+    /// custom relay instead of the built-in `startCollab` call these so the
+    /// remote-cursor overlay renders. Drive `setRemotePeers` from the roster and
+    /// `setRemoteCursor` from each presence/pointer update.
+    func setRemotePeers(_ peers: [Peer]) {
+        remotePeers = peers
+    }
+
+    func setRemoteCursor(peerId: String, pointer: PointerPos?) {
+        if let pointer {
+            remoteCursors[peerId] = pointer
+        } else {
+            remoteCursors.removeValue(forKey: peerId)
+        }
+    }
+
     /// Wire the outbound sink + id namespace (shared by `startCollab` and tests).
     func attachCollabSink(idPrefix: String, send: @escaping ([ExcalidrawElement]) -> Void) {
         controller.idPrefix = idPrefix

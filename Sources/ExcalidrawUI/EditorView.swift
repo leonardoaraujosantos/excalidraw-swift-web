@@ -1,4 +1,5 @@
 import ExcalidrawEditor
+import ExcalidrawMath
 import ExcalidrawModel
 import ExcalidrawRender
 import PhotosUI
@@ -284,6 +285,7 @@ public struct EditorView: View {
         .overlay(hoverIndicator)
         .overlay(embedOverlay)
         .overlay(textEditor)
+        .overlay(remoteCursorsOverlay)
         .contextMenu { contextMenuItems }
         .focusable()
         .focusEffectDisabled()
@@ -291,6 +293,23 @@ public struct EditorView: View {
         .onKeyPress(phases: .down) { handleKeyPress($0) }
         .onAppear { canvasFocused = true }
         .background(model.theme == .dark ? Color(white: 0.07) : Color.white)
+    }
+
+    /// Remote collaborators' live cursors (name + colour), each positioned by
+    /// mapping its scene-space pointer through the current viewport. Driven by the
+    /// built-in `startCollab` or an embedder via `setRemotePeers`/`setRemoteCursor`.
+    @ViewBuilder
+    private var remoteCursorsOverlay: some View {
+        let peers = Dictionary(model.remotePeers.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        ForEach(model.remoteCursors.sorted { $0.key < $1.key }, id: \.key) { peerId, pointer in
+            let v = model.viewport.sceneToView(Point(pointer.x, pointer.y))
+            RemoteCursorMarker(
+                name: peers[peerId]?.name ?? "",
+                color: Color(hex: peers[peerId]?.color ?? "#e64980")
+            )
+            .position(x: CGFloat(v.x), y: CGFloat(v.y))
+            .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder
@@ -702,5 +721,29 @@ extension Color {
                 Int(resolved.blueComponent * 255)
             )
         #endif
+    }
+}
+
+/// A single remote collaborator's cursor: a coloured pointer with a name pill.
+private struct RemoteCursorMarker: View {
+    let name: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Image(systemName: "cursorarrow.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(color)
+            if !name.isEmpty {
+                Text(name)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(color, in: Capsule())
+                    .foregroundStyle(.white)
+            }
+        }
+        .fixedSize()
     }
 }
