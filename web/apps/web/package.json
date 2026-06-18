@@ -12,10 +12,6 @@
     "e2e:report": "playwright show-report"
   },
   "dependencies": {
-    "@cyberdynecorp/excalidraw-editor": "workspace:*",
-    "@cyberdynecorp/excalidraw-math": "workspace:*",
-    "@cyberdynecorp/excalidraw-model": "workspace:*",
-    "@cyberdynecorp/excalidraw-render": "workspace:*",
     "@cyberdynecorp/excalidraw-svelte": "workspace:*"
   },
   "devDependencies": {

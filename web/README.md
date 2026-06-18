@@ -10,21 +10,22 @@ roadmap.
 
 ```
 web/
-├── packages/
-│   ├── math/      @cyberdynecorp/excalidraw-math — points, vectors, angles, curves, geometry  ✅ T0
-│   ├── model/     @cyberdynecorp/excalidraw-model — element schema, scene, .excalidraw codecs ✅ T1
-│   ├── geometry/  @cyberdynecorp/excalidraw-geometry — bounds, hit-test, snapping, elbow A*  ✅ T2
-│   ├── render/    @cyberdynecorp/excalidraw-render — Canvas2D renderer, rough.js, SVG/PNG     🟡 T3
-│   ├── editor/    @cyberdynecorp/excalidraw-editor — tools, selection, generators, smart     ✅ T4
-│   ├── svelte/    @cyberdynecorp/excalidraw-svelte — reactive EditorStore + Svelte bridge   🟡 T5
-│   └── protocol/  @cyberdynecorp/excalidraw-protocol — collaboration wire schema + reconcile 🟡 T7
-├── apps/web/      browser app (Vite + Svelte 5)                         🟡 T5
-└── server/        WebSocket relay                                         (T7)
+├── packages/excalidraw-svelte/   @cyberdynecorp/excalidraw-svelte — one package, subpath exports:
+│   └── src/
+│       ├── math/      → /math      points, vectors, angles, curves, geometry          ✅ T0
+│       ├── model/     → /model     element schema, scene, .excalidraw codecs          ✅ T1
+│       ├── geometry/  → /geometry  bounds, hit-test, snapping, elbow A*               ✅ T2
+│       ├── render/    → /render    Canvas2D renderer, rough.js, SVG/PNG                ✅ T3
+│       ├── editor/    → /editor    tools, selection, generators, smart                ✅ T4
+│       ├── svelte/    → (root)     reactive EditorStore + Svelte bridge                ✅ T5
+│       └── protocol/  → /protocol  collaboration wire schema + reconcile              ✅ T7
+├── apps/web/      browser app (Vite + Svelte 5)                                       ✅ T5
+└── server/        @cyberdynecorp/excalidraw-relay — Node WebSocket relay              ✅ T7
 ```
 
 ## Install (GitHub Packages)
 
-The seven packages plus `@cyberdynecorp/excalidraw-relay` publish to **GitHub Packages** under the `@cyberdynecorp` org (ESM-only). Consumers point the scope at GitHub Packages and authenticate with a GitHub token that has `read:packages`, via `.npmrc`:
+The library ships as **one package, `@cyberdynecorp/excalidraw-svelte`** (every layer is a subpath export), plus the Node relay `@cyberdynecorp/excalidraw-relay`. Both publish to **GitHub Packages** under the `@cyberdynecorp` org (ESM-only). Consumers point the scope at GitHub Packages and authenticate with a GitHub token that has `read:packages`, via `.npmrc`:
 
 ```ini
 # .npmrc
@@ -32,16 +33,17 @@ The seven packages plus `@cyberdynecorp/excalidraw-relay` publish to **GitHub Pa
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-Then install whichever layers you need:
+Then install the library (and the relay only if you run a server), and import any layer from its subpath:
 
 ```sh
-npm install @cyberdynecorp/excalidraw-model @cyberdynecorp/excalidraw-editor    # headless engine
-npm install @cyberdynecorp/excalidraw-svelte                          # reactive store (pulls the rest)
-npm install @cyberdynecorp/excalidraw-protocol @cyberdynecorp/excalidraw-relay  # collaboration
+npm install @cyberdynecorp/excalidraw-svelte    # the whole library — math · model · geometry · render · editor · protocol · svelte
+npm install @cyberdynecorp/excalidraw-relay      # Node WebSocket relay (server only)
 ```
 
 ```ts
 import { EditorStore, browserSocket, reconnectingSocket } from "@cyberdynecorp/excalidraw-svelte";
+import { reconcileElements } from "@cyberdynecorp/excalidraw-svelte/protocol";
+import type { ExcalidrawElement } from "@cyberdynecorp/excalidraw-svelte/model";
 
 const store = new EditorStore();
 store.selectTool("rectangle");
@@ -56,8 +58,8 @@ The `apps/web` demo app is **not** published.
 Each package's `publishConfig.registry` points at `https://npm.pkg.github.com`. Authenticate with a GitHub token that has **`write:packages`** for the `CyberdyneCorp` org (the repo's `~/.npmrc` already routes `@cyberdynecorp` there via `${NPM_GITHUB_TOKEN}`):
 
 ```sh
-pnpm build:libs              # tsc → dist (.js + .d.ts) for every library
-pnpm publish:libs            # rewrites workspace:* → versions, publishes 0.1.0 to GitHub Packages
+pnpm build:libs              # tsc → dist (.js + .d.ts) for the library and the relay
+pnpm publish:libs            # rewrites workspace:* → versions, publishes both to GitHub Packages
 ```
 
 Versions live in each package's `package.json` (start at `0.1.0`); bump together for a coordinated release.
@@ -84,22 +86,22 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
 
 ## Status
 
-- **T0 — Foundations:** `@cyberdynecorp/excalidraw-math` ported from `ExcalidrawMath` with the Swift
+- **T0 — Foundations:** `@cyberdynecorp/excalidraw-svelte/math` ported from `ExcalidrawMath` with the Swift
   unit tests ported to Vitest (67 tests). Strict TS (`noUncheckedIndexedAccess`).
-- **T1 — Model & file format:** `@cyberdynecorp/excalidraw-model` ported from `ExcalidrawModel` — the
+- **T1 — Model & file format:** `@cyberdynecorp/excalidraw-svelte/model` ported from `ExcalidrawModel` — the
   flat element schema (13 types), `Scene` with versioned `mutate`, diff-based
   `History`/`Store` undo-redo, `restore` + fractional indexing, and the
   `.excalidraw` / `.excalidrawlib` codecs with canonical (sorted-key) JSON.
   39 tests, including a **cross-language round-trip** that reads the shared
   `../Fixtures/*.excalidraw` and asserts the re-encode is semantically
   diff-clean against the Swift-authored source.
-- **T2 — Geometry (in progress):** `@cyberdynecorp/excalidraw-geometry` ported from
+- **T2 — Geometry (in progress):** `@cyberdynecorp/excalidraw-svelte/geometry` ported from
   `ExcalidrawGeometry` — `BoundingBox`, rotation-aware element bounds + outline
   extraction, hit-testing (`shouldTestInside`/`hit`/`distance`), arrow binding,
   cardinal `Heading`s, viewport culling, dirty regions, frame containment,
   object + gap snapping, and the Snap-to-Shape `ShapeGenerator`. 48 tests.
   Still to port: the elbow-arrow A\* router and the freehand shape recognizer.
-- **T3 — Rendering (in progress):** `@cyberdynecorp/excalidraw-render` ported from `ExcalidrawRender`
+- **T3 — Rendering (in progress):** `@cyberdynecorp/excalidraw-svelte/render` ported from `ExcalidrawRender`
   — `Viewport`, rough.js option builder + element drawables (via the real
   `roughjs`), op-set → SVG-path / canvas-path serialization, a Canvas2D
   `renderScene` (drawables, perfect-freehand freedraw, text, frames, viewport
@@ -107,7 +109,7 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
   (`tEXt` chunk + CRC-32). 27 tests, incl. the renderer verified against a
   recording mock 2D context. Still to port: the interactive overlay and the
   PNG rasterizer (needs a real/headless canvas).
-- **T4 — Editor engine (in progress):** `@cyberdynecorp/excalidraw-editor` ported from
+- **T4 — Editor engine (in progress):** `@cyberdynecorp/excalidraw-svelte/editor` ported from
   `ExcalidrawEditor` — the pure pointer state machine: tool model, element
   creation (shapes/line/arrow/freedraw/frame), single/group/box/multi
   selection, move/resize/rotate (with aspect + from-centre), eraser, undo/redo,
@@ -128,7 +130,7 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     Still to port: arrow binding, elbow arrows, linear point edit, image crop,
     shape recognition, flowchart spawning.
   - **T4 slice 4:** freehand shape recognition (`ShapeRecognizer` in
-    `@cyberdynecorp/excalidraw-geometry` + `recognizeFreedraw`) — RDP simplification + circularity +
+    `@cyberdynecorp/excalidraw-svelte/geometry` + `recognizeFreedraw`) — RDP simplification + circularity +
     star/heart/cloud/speech-bubble feature detectors → snap a stroke to a clean
     rectangle/ellipse/diamond/triangle/pentagon/hexagon/star/etc. 5 tests
     ported from ShapeRecognitionTests. Still to port: arrow binding, elbow
@@ -143,12 +145,12 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     tool change / click-away; suppresses box-transform handles. 6 tests ported
     from LinearEditTests. Still to port: elbow arrows, image-crop drag,
     flowchart spawning.
-  - **T4 slice 7:** interactive image cropping (`CropGeometry` in `@cyberdynecorp/excalidraw-geometry`
+  - **T4 slice 7:** interactive image cropping (`CropGeometry` in `@cyberdynecorp/excalidraw-svelte/geometry`
     + crop mode in the editor) — `beginCropEdit`, eight crop handles, drag to
     reframe with the crop rectangle tracking the pixels (clamped to the full
     image), exit on tool change / tap-away. 9 tests ported from ImageCropTests.
     Still to port: elbow arrows, flowchart spawning.
-  - **T4 slice 8:** elbow-arrow router (`ElbowArrow` in `@cyberdynecorp/excalidraw-geometry`) — A\*
+  - **T4 slice 8:** elbow-arrow router (`ElbowArrow` in `@cyberdynecorp/excalidraw-svelte/geometry`) — A\*
     over a non-uniform grid with dynamic AABBs and a bend-count heuristic →
     axis-aligned routes between free points or bound boxes; plus segment
     editing (fixable segments, drag-to-move with bend insertion,
@@ -159,16 +161,16 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     linear-edit overlay with fixed-segment pinning, `resetElbowShape`) and
     flowchart spawning (`addFlowchartNode` — clone the source node offset in a
     direction with stagger, link by a bound elbow arrow). 15 tests ported from
-    ElbowArrowEditorTests + FlowchartTests. **`@cyberdynecorp/excalidraw-editor` is now feature-complete.**
+    ElbowArrowEditorTests + FlowchartTests. **`@cyberdynecorp/excalidraw-svelte/editor` is now feature-complete.**
 - **T5 — Svelte UI (in progress):** `@cyberdynecorp/excalidraw-svelte` exposes a reactive `EditorStore`
-  bridge (the runes-ready wrapper over `@cyberdynecorp/excalidraw-editor` + `@cyberdynecorp/excalidraw-render`, mirroring the
+  bridge (the runes-ready wrapper over `@cyberdynecorp/excalidraw-svelte/editor` + `@cyberdynecorp/excalidraw-svelte/render`, mirroring the
   Swift `EditorModel`): view→scene pointer forwarding, viewport pan/zoom, tool +
   style commands, generators, undo/redo, theme, Canvas2D render, SVG export and
   `.excalidraw` document round-trip — 11 tests. `apps/web` is a runnable Vite +
   Svelte 5 example (toolbar, canvas with pointer + wheel pan/zoom, properties,
   actions, generators, zoom, theme, export) — builds clean, `svelte-check` 0
   errors, exercised in CI.
-  - **T5 slice 2:** the **interactive overlay** (`renderOverlay` in `@cyberdynecorp/excalidraw-render`,
+  - **T5 slice 2:** the **interactive overlay** (`renderOverlay` in `@cyberdynecorp/excalidraw-svelte/render`,
     parity InteractiveRenderer) — selection box, transform handles, rotation
     handle, dashed marquee, snap guides, linear/elbow/crop edit handles; wired
     through `EditorStore.renderOverlay` and drawn by the canvas. Plus on-canvas
@@ -191,7 +193,7 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     real bug: in Svelte 5 runes mode the app's UI/canvas didn't repaint on
     store changes (plain reads aren't tracked) — fixed with a `rev`-keyed
     `$derived` view. Runs in CI (`web` workflow `e2e` job).
-  - **T6 slice 2:** **golden snapshots** (`@cyberdynecorp/excalidraw-render` `golden.test.ts`) — a
+  - **T6 slice 2:** **golden snapshots** (`@cyberdynecorp/excalidraw-svelte/render` `golden.test.ts`) — a
     representative corpus (the shared `../Fixtures/minimal_scene.excalidraw`
     plus a synthetic `rich_scene` covering every renderable element kind at
     fixed seeds) locked against committed goldens: the **canonical-JSON**
@@ -209,12 +211,12 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     (arrowhead stroke/fill + bound-text centring) and `editor-store.test.ts`
     (insert-note-edits-text + double-click re-edit), plus the Playwright suite
     now asserts the arrow's `endArrowhead` and types a sticky-note label.
-  - **T6 slice 4:** **rough.js op-set parity** (`@cyberdynecorp/excalidraw-render` `rough-parity.test.ts`)
+  - **T6 slice 4:** **rough.js op-set parity** (`@cyberdynecorp/excalidraw-svelte/render` `rough-parity.test.ts`)
     — the TS mirror of Swift's `RoughJSParityTests`. The Swift `RoughKit` is a
     re-port of rough.js pinned to reference op-sets captured from the real
     rough.js 4.6.6 at a fixed seed; the TS twin renders with that *same*
     `roughjs@4.6.6`, so asserting against the *same* constants proves all three
-    agree (rough.js ⇔ Swift `RoughKit` ⇔ TS `@cyberdynecorp/excalidraw-render`) for line, rectangle,
+    agree (rough.js ⇔ Swift `RoughKit` ⇔ TS `@cyberdynecorp/excalidraw-svelte/render`) for line, rectangle,
     ellipse and the filled-rectangle outline (fresh seed, independent of fill),
     with hachure fill bounded to the same op-count magnitude. Render geometry
     can't silently drift between the two implementations.
@@ -228,7 +230,7 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     cross-hatch / solid / zigzag) wired to `setFillStyle`. E2E asserts the moved
     note keeps a tight selection, a line vertex drags, and the pattern change
     lands on the element.
-- **T7 — Collaboration (in progress):** `@cyberdynecorp/excalidraw-protocol` — the language-neutral
+- **T7 — Collaboration (in progress):** `@cyberdynecorp/excalidraw-svelte/protocol` — the language-neutral
   collaboration contract shared by the web and Swift clients. Defines the
   versioned WebSocket message schema (`join`/`leave`, `room-state`,
   `peer-joined`/`peer-left`, `presence`, lossy `pointer`, `element-updates`,
@@ -248,7 +250,7 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     peer gets `room-state` (roster + current scene) and others get
     `peer-joined`; `presence`/`pointer`/`element-updates` relay to the rest of
     the room; the relay keeps a per-room snapshot **reconciled** with
-    `@cyberdynecorp/excalidraw-protocol` so late joiners receive the latest scene and a stale update
+    `@cyberdynecorp/excalidraw-svelte/protocol` so late joiners receive the latest scene and a stale update
     can't clobber a newer element; disconnect emits `peer-left` and drops empty
     rooms. 10 tests (8 `RelayCore` unit + 2 end-to-end over real `ws` sockets).
   - **T7 slice 3 — cross-platform client (iOS ⇄ web).** `CollabSession` in

@@ -27,21 +27,9 @@ importers:
 
   apps/web:
     dependencies:
-      '@cyberdynecorp/excalidraw-editor':
-        specifier: workspace:*
-        version: link:../../packages/editor
-      '@cyberdynecorp/excalidraw-math':
-        specifier: workspace:*
-        version: link:../../packages/math
-      '@cyberdynecorp/excalidraw-model':
-        specifier: workspace:*
-        version: link:../../packages/model
-      '@cyberdynecorp/excalidraw-render':
-        specifier: workspace:*
-        version: link:../../packages/render
       '@cyberdynecorp/excalidraw-svelte':
         specifier: workspace:*
-        version: link:../../packages/svelte
+        version: link:../../packages/excalidraw-svelte
     devDependencies:
       '@cyberdynecorp/excalidraw-relay':
         specifier: workspace:*
@@ -65,68 +53,8 @@ importers:
         specifier: ^6.0.7
         version: 6.4.3(@types/node@22.19.21)
 
-  packages/editor:
+  packages/excalidraw-svelte:
     dependencies:
-      '@cyberdynecorp/excalidraw-geometry':
-        specifier: workspace:*
-        version: link:../geometry
-      '@cyberdynecorp/excalidraw-math':
-        specifier: workspace:*
-        version: link:../math
-      '@cyberdynecorp/excalidraw-model':
-        specifier: workspace:*
-        version: link:../model
-    devDependencies:
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/geometry:
-    dependencies:
-      '@cyberdynecorp/excalidraw-math':
-        specifier: workspace:*
-        version: link:../math
-      '@cyberdynecorp/excalidraw-model':
-        specifier: workspace:*
-        version: link:../model
-    devDependencies:
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/math:
-    devDependencies:
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/model:
-    devDependencies:
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/protocol:
-    dependencies:
-      '@cyberdynecorp/excalidraw-model':
-        specifier: workspace:*
-        version: link:../model
-    devDependencies:
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/render:
-    dependencies:
-      '@cyberdynecorp/excalidraw-geometry':
-        specifier: workspace:*
-        version: link:../geometry
-      '@cyberdynecorp/excalidraw-math':
-        specifier: workspace:*
-        version: link:../math
-      '@cyberdynecorp/excalidraw-model':
-        specifier: workspace:*
-        version: link:../model
       perfect-freehand:
         specifier: ^1.2.2
         version: 1.2.3
@@ -138,48 +66,11 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
-  packages/svelte:
-    dependencies:
-      '@cyberdynecorp/excalidraw-editor':
-        specifier: workspace:*
-        version: link:../editor
-      '@cyberdynecorp/excalidraw-geometry':
-        specifier: workspace:*
-        version: link:../geometry
-      '@cyberdynecorp/excalidraw-math':
-        specifier: workspace:*
-        version: link:../math
-      '@cyberdynecorp/excalidraw-model':
-        specifier: workspace:*
-        version: link:../model
-      '@cyberdynecorp/excalidraw-protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@cyberdynecorp/excalidraw-render':
-        specifier: workspace:*
-        version: link:../render
-    devDependencies:
-      '@cyberdynecorp/excalidraw-relay':
-        specifier: workspace:*
-        version: link:../../server
-      '@types/ws':
-        specifier: ^8.5.13
-        version: 8.18.1
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-      ws:
-        specifier: ^8.18.0
-        version: 8.21.0
-
   server:
     dependencies:
-      '@cyberdynecorp/excalidraw-model':
+      '@cyberdynecorp/excalidraw-svelte':
         specifier: workspace:*
-        version: link:../packages/model
-      '@cyberdynecorp/excalidraw-protocol':
-        specifier: workspace:*
-        version: link:../packages/protocol
+        version: link:../packages/excalidraw-svelte
       ws:
         specifier: ^8.18.0
         version: 8.21.0

@@ -1,6 +1,6 @@
 {
   "name": "@cyberdynecorp/excalidraw-relay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "WebSocket relay server for collaboration — rooms, presence, and version-reconciled scene sync.",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,8 +16,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@cyberdynecorp/excalidraw-model": "workspace:*",
-    "@cyberdynecorp/excalidraw-protocol": "workspace:*",
+    "@cyberdynecorp/excalidraw-svelte": "workspace:*",
     "ws": "^8.18.0"
   },
   "devDependencies": {

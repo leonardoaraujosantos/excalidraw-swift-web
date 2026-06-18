@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Tool } from "@cyberdynecorp/excalidraw-editor";
-  import type { FillStyle } from "@cyberdynecorp/excalidraw-model";
+  import type { Tool } from "@cyberdynecorp/excalidraw-svelte/editor";
+  import type { FillStyle } from "@cyberdynecorp/excalidraw-svelte/model";
   import { EditorStore, browserSocket, reconnectingSocket } from "@cyberdynecorp/excalidraw-svelte";
   import Canvas from "./lib/Canvas.svelte";
 

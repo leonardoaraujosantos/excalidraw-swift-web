@@ -1,0 +1,67 @@
+{
+  "name": "@cyberdynecorp/excalidraw-svelte",
+  "version": "0.2.0",
+  "description": "Excalidraw port for the web — framework-agnostic math, model, geometry, rendering, editor, and collaboration protocol, plus a reactive Svelte 5 editor store. Exposed via subpath exports.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./svelte": {
+      "types": "./dist/svelte/index.d.ts",
+      "import": "./dist/svelte/index.js"
+    },
+    "./editor": {
+      "types": "./dist/editor/index.d.ts",
+      "import": "./dist/editor/index.js"
+    },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "import": "./dist/render/index.js"
+    },
+    "./geometry": {
+      "types": "./dist/geometry/index.d.ts",
+      "import": "./dist/geometry/index.js"
+    },
+    "./model": {
+      "types": "./dist/model/index.d.ts",
+      "import": "./dist/model/index.js"
+    },
+    "./math": {
+      "types": "./dist/math/index.d.ts",
+      "import": "./dist/math/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "perfect-freehand": "^1.2.2",
+    "roughjs": "^4.6.6"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "license": "MIT",
+  "author": "Cyberdyne Corp AI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leonardoaraujosantos/excalidraw-swift-web.git",
+    "directory": "web/packages/excalidraw-svelte"
+  },
+  "homepage": "https://github.com/leonardoaraujosantos/excalidraw-swift-web#readme",
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

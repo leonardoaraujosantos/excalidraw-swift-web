@@ -8,7 +8,7 @@
       "**/.svelte-kit/**",
       "**/coverage/**",
       "apps/**",
-      "**/src/golden/**"
+      "**/golden/**"
     ]
   },
   "formatter": {
