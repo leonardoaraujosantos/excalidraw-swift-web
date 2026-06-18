@@ -9,7 +9,8 @@ language-neutral and implemented identically on both clients, so the two
 converge without a central authority or CRDT.
 
 Implemented by:
-- the wire schema + reconciliation: TS `web/packages/protocol/` and Swift
+- the wire schema + reconciliation: TS `web/packages/excalidraw-svelte/src/protocol/`
+  (published as `@cyberdynecorp/excalidraw-svelte/protocol`) and Swift
   `Sources/ExcalidrawCollab/` (`CollabMessage`, `Reconcile`, `CollabCodec`),
   kept byte-identical by the shared `Fixtures/protocol/*.json` corpus that both
   test suites assert against;
@@ -18,7 +19,7 @@ Implemented by:
   Swift `ExcalidrawCollab.CollabClient` (wired into `EditorModel`);
 - an automated live iPad-simulator ↔ browser session: `web/scripts/collab-live.sh`
   (XCUITest `CollabLiveUITests` + Playwright `collab-live.spec.ts` against one
-  relay). (src: web/packages/protocol/, Sources/ExcalidrawCollab/, web/server/)
+  relay). (src: web/packages/excalidraw-svelte/src/protocol/, Sources/ExcalidrawCollab/, web/server/)
 
 ## Requirements
 

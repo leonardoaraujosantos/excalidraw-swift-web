@@ -62,7 +62,7 @@ pnpm build:libs              # tsc → dist (.js + .d.ts) for the library and th
 pnpm publish:libs            # rewrites workspace:* → versions, publishes both to GitHub Packages
 ```
 
-Versions live in each package's `package.json` (start at `0.1.0`); bump together for a coordinated release.
+Versions live in each package's `package.json` (currently `0.2.0`); bump both together for a coordinated release. A version tag push (e.g. `0.3.0`) also publishes automatically via `.github/workflows/publish.yml`.
 
 ## Develop
 
