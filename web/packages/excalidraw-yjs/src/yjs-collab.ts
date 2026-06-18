@@ -83,6 +83,11 @@ export class YjsCollab {
     if (this.started) return;
     this.started = true;
 
+    // Namespace this client's generated element ids by the doc's unique clientID,
+    // so two peers never mint the same id and clobber each other in the shared
+    // Y.Map (parity with the LWW session's idPrefix).
+    this.store.controller.idPrefix = `y${this.doc.clientID}-`;
+
     // Seed local elements into the doc (merges with whatever the room has),
     // then hydrate the editor from the union.
     if (this.store.scene.elements.length > 0) this.flushLocal();

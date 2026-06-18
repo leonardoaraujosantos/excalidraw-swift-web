@@ -69,6 +69,26 @@ describe("YjsCollab — editor ⇄ Y.Doc", () => {
     expect(elementsKey(doc).get(id)?.get("version")).toBe(versionAfterDraw);
   });
 
+  it("namespaces element ids per doc so two peers never collide", () => {
+    // Regression: both EditorControllers minted "el-1" with an empty idPrefix,
+    // so peer B's element overwrote peer A's at the same Y.Map key.
+    const storeA = new EditorStore();
+    const storeB = new EditorStore();
+    const docA = new Y.Doc();
+    const docB = new Y.Doc();
+    new YjsCollab(storeA, docA).start();
+    new YjsCollab(storeB, docB).start();
+
+    drawRect(storeA); // rectangle on A
+    drawRect(storeB); // rectangle on B — distinct id thanks to the per-doc prefix
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(docB));
+
+    expect(storeA.controller.idPrefix).not.toBe(storeB.controller.idPrefix);
+    expect(storeA.scene.visibleElements).toHaveLength(2); // both survived
+    expect(storeB.scene.visibleElements).toHaveLength(2);
+  });
+
   it("FIDELITY: a Yjs-synced scene is valid .excalidraw and interoperates with the LWW engine", () => {
     const store = new EditorStore();
     const doc = new Y.Doc();

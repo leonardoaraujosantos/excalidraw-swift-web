@@ -30,6 +30,9 @@ importers:
       '@cyberdynecorp/excalidraw-svelte':
         specifier: workspace:*
         version: link:../../packages/excalidraw-svelte
+      '@cyberdynecorp/excalidraw-yjs':
+        specifier: workspace:*
+        version: link:../../packages/excalidraw-yjs
     devDependencies:
       '@cyberdynecorp/excalidraw-relay':
         specifier: workspace:*
@@ -52,6 +55,9 @@ importers:
       vite:
         specifier: ^6.0.7
         version: 6.4.3(@types/node@22.19.21)
+      yjs:
+        specifier: ^13.6.0
+        version: 13.6.31
 
   packages/excalidraw-svelte:
     dependencies:
