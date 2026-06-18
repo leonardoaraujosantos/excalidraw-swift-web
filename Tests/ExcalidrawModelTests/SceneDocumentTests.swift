@@ -27,4 +27,18 @@ final class SceneDocumentTests: XCTestCase {
         let scene = try SceneDocument.decode(data)
         XCTAssertEqual(scene.visibleElements.count, 2)
     }
+
+    /// Regression: the default `source` identifier written into `.excalidraw`
+    /// files is the app/library name ("excalidraw-swift"), not the GitHub repo
+    /// name. A repo rename (excalidraw-swift → excalidraw-swift-web) once leaked
+    /// into this literal via an over-broad substitution. The web twin's parallel
+    /// identifier is "excalidraw-web"; the two are independent app ids.
+    func testDefaultSourceIdentifier() throws {
+        XCTAssertEqual(ExcalidrawFile().source, "excalidraw-swift")
+        XCTAssertEqual(Scene(elements: []).toFile().source, "excalidraw-swift")
+
+        let data = try SceneDocument.encode(Scene(elements: [rect("a", index: "a0")]))
+        let file = try ExcalidrawFile.decode(from: data)
+        XCTAssertEqual(file.source, "excalidraw-swift")
+    }
 }

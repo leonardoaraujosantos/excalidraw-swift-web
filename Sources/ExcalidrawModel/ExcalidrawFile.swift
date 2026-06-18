@@ -66,7 +66,7 @@ public struct ExcalidrawFile: Codable, Equatable, Sendable {
     public init(
         type: String = ExcalidrawSchema.fileType,
         version: Int = ExcalidrawSchema.schemaVersion,
-        source: String = "excalidraw-swift-web",
+        source: String = "excalidraw-swift",
         elements: [ExcalidrawElement] = [],
         appState: AppState = AppState(),
         files: [String: BinaryFileData] = [:]
