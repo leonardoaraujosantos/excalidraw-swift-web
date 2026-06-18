@@ -41,6 +41,15 @@ public struct EditorView: View {
         _model = StateObject(wrappedValue: EditorModel(scene: scene, viewport: viewport))
     }
 
+    /// Mount the editor on a caller-owned ``EditorModel``. Lets an embedder wire
+    /// collaboration to its own transport (e.g. a custom relay) via the public
+    /// `attachCollabSink` / `applyRemoteScene` / `applyRemoteElements` seams
+    /// before mounting — the Swift parity of driving the web `EditorStore` over a
+    /// pluggable `CollabSocket`.
+    public init(model: EditorModel) {
+        _model = StateObject(wrappedValue: model)
+    }
+
     private var isCompact: Bool {
         sizeClass == .compact
     }
