@@ -317,7 +317,7 @@ public struct EditorView: View {
         #if canImport(UIKit)
             PointerInputView(
                 model: model,
-                onHover: { hoverPoint = $0 },
+                onHover: { hoverPoint = $0; model.broadcastHover(at: $0) },
                 // Pencil Pro squeeze toggles the eraser.
                 onSqueeze: { model.select(tool: model.activeTool == .eraser ? .selection : .eraser) }
             )

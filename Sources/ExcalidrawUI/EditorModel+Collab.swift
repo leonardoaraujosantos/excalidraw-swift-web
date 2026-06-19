@@ -1,5 +1,6 @@
 import ExcalidrawCollab
 import ExcalidrawEditor
+import ExcalidrawMath
 import ExcalidrawModel
 import Foundation
 
@@ -73,6 +74,19 @@ public extension EditorModel {
     /// `setRemoteCursor` from each presence/pointer update.
     func setRemotePeers(_ peers: [Peer]) {
         remotePeers = peers
+    }
+
+    /// Broadcast the local pointer from an Apple Pencil hover (the pen in
+    /// proximity, no contact) so peers can track the cursor before it touches
+    /// down. `viewPoint` is in view coordinates; `nil` (pen left proximity) is
+    /// ignored — the last position simply stops updating. No-op when not
+    /// collaborating, and it never drives any tool (purely presence).
+    func broadcastHover(at viewPoint: CGPoint?) {
+        guard let viewPoint, collab != nil || collabPointerSink != nil else { return }
+        let scene = viewport.viewToScene(Point(viewPoint.x, viewPoint.y))
+        let pos = PointerPos(x: scene.x, y: scene.y)
+        collab?.sendPointer(pos)
+        collabPointerSink?(pos)
     }
 
     func setRemoteCursor(peerId: String, pointer: PointerPos?) {

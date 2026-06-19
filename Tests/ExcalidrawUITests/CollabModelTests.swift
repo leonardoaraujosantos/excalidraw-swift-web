@@ -90,6 +90,19 @@ final class CollabModelTests: XCTestCase {
         XCTAssertEqual(presences.count, 1) // presence published once, on pointer up
     }
 
+    func testBroadcastsHoverPointerWithoutDrawing() {
+        // Regression: Apple Pencil hover (proximity, no contact) must broadcast
+        // the cursor so peers track it before the pen touches down — and it must
+        // not create or mutate any element. A nil hover (pen left) is ignored.
+        let model = EditorModel()
+        var pointers: [PointerPos] = []
+        model.attachCollabSink(idPrefix: "me-", send: { _ in }, sendPointer: { pointers.append($0) })
+        model.broadcastHover(at: CGPoint(x: 30, y: 40))
+        model.broadcastHover(at: nil) // pen left proximity → no extra send
+        XCTAssertEqual(pointers.count, 1)
+        XCTAssertTrue(model.controller.scene.visibleElements.isEmpty) // hover never draws
+    }
+
     func testIdPrefixNamespacesIds() throws {
         let alice = EditorModel()
         alice.attachCollabSink(idPrefix: "alice-") { _ in }
