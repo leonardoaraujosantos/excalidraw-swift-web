@@ -246,7 +246,7 @@ public final class EditorController {
         switch activeTool {
         case .eraser:
             interaction = .erasing(touched: [])
-            eraseAt(event.scenePoint)
+            eraseAt(event.scenePoint, type: event.type)
         case .hand:
             break // panning is handled by the UI layer (viewport)
         default:
@@ -274,7 +274,7 @@ public final class EditorController {
         case let .freehand(id, origin):
             appendFreehandPoint(id: id, origin: origin, point: event.scenePoint, pressure: event.pressure)
         case .erasing:
-            eraseAt(event.scenePoint)
+            eraseAt(event.scenePoint, type: event.type)
         case let .moving(origin, originals):
             var dx = event.scenePoint.x - origin.x
             var dy = event.scenePoint.y - origin.y
@@ -559,8 +559,8 @@ public final class EditorController {
         snapLinesY = linesY
     }
 
-    private func eraseAt(_ point: Point) {
-        let threshold = handleHitRadius(.mouse)
+    private func eraseAt(_ point: Point, type: PointerType) {
+        let threshold = handleHitRadius(type)
         let hits = scene.visibleElements.filter {
             !$0.base.locked && HitTest.hit($0, at: point, threshold: threshold)
         }

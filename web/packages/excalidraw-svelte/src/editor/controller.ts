@@ -154,7 +154,7 @@ export class EditorController {
     if (this.editingLinearID !== null && this.handleLinearEditDown(e)) return;
     if (this.activeTool === "eraser") {
       this.interaction = { kind: "erasing" };
-      this.eraseAt(e.scenePoint);
+      this.eraseAt(e.scenePoint, e.type);
       return;
     }
     if (this.activeTool === "hand") return;
@@ -186,7 +186,7 @@ export class EditorController {
         this.moveLinearPoint(i.id, i.index, e.scenePoint);
         break;
       case "erasing":
-        this.eraseAt(e.scenePoint);
+        this.eraseAt(e.scenePoint, e.type);
         break;
       case "moving": {
         let dx = e.scenePoint.x - i.origin.x;
@@ -870,8 +870,8 @@ export class EditorController {
     return [dx + offsetX, dy + offsetY];
   }
 
-  private eraseAt(point: Point): void {
-    const threshold = this.handleHitRadius("mouse");
+  private eraseAt(point: Point, type: PointerType): void {
+    const threshold = this.handleHitRadius(type);
     const hits = this.scene.visibleElements.filter((el) => !el.locked && hit(el, point, threshold));
     if (hits.length === 0) return;
     this.store.modifyScene((scene) => {
