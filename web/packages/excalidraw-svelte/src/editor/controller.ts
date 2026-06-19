@@ -27,6 +27,7 @@ import {
   type BaseProperties,
   type BinaryFileData,
   type ExcalidrawElement,
+  type FixedPointBinding,
   type FixedSegment,
   type ImageCrop,
   type JSONValue,
@@ -492,10 +493,48 @@ export class EditorController {
 
   deleteSelected(): void {
     if (this.selectedIDs.size === 0) return;
+    const removed = this.withBoundText(this.selectedIDs);
     this.store.transaction((scene) => {
-      for (const id of this.selectedIDs) scene.remove(id);
+      for (const id of removed) scene.remove(id);
+      EditorController.dropDanglingRefs(scene, removed);
     });
     this.selectedIDs = new Set();
+  }
+
+  /** A selection expanded to include the bound text of every selected container,
+   * so deleting a labeled shape / sticky note / table cell removes its label too
+   * instead of orphaning it on screen. */
+  private withBoundText(ids: Set<string>): Set<string> {
+    const out = new Set<string>(ids);
+    for (const id of ids) {
+      const el = this.scene.element(id);
+      for (const b of el?.boundElements ?? []) {
+        if (b.type === "text") out.add(b.id);
+      }
+    }
+    return out;
+  }
+
+  /** Strip references to `removed` ids from surviving elements — bound-element
+   * lists and arrow start/end bindings — so nothing points at a deleted element. */
+  private static dropDanglingRefs(scene: Scene, removed: Set<string>): void {
+    for (const el of scene.visibleElements) {
+      let next = el;
+      if (el.boundElements?.some((b) => removed.has(b.id))) {
+        next = { ...next, boundElements: el.boundElements.filter((b) => !removed.has(b.id)) };
+      }
+      const b = next as {
+        startBinding?: FixedPointBinding | null;
+        endBinding?: FixedPointBinding | null;
+      };
+      if (b.startBinding && removed.has(b.startBinding.elementId)) {
+        next = { ...next, startBinding: null } as ExcalidrawElement;
+      }
+      if (b.endBinding && removed.has(b.endBinding.elementId)) {
+        next = { ...next, endBinding: null } as ExcalidrawElement;
+      }
+      if (next !== el) scene.replace(next);
+    }
   }
 
   /** Apply a change to every selected element as one undo step. */
