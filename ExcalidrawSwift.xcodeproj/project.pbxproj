@@ -18,6 +18,7 @@
 		8F813DB42A25BD00D1EF2C87 /* ExcalidrawUI in Frameworks */ = {isa = PBXBuildFile; productRef = 11ED78A939E9552DD837CAF1 /* ExcalidrawUI */; };
 		930073DE79E38D451390A449 /* ExcalidrawMath in Frameworks */ = {isa = PBXBuildFile; productRef = C07EB7C668076453F18C1B6B /* ExcalidrawMath */; };
 		BB2E451AC70807DB3531B87D /* sample.excalidraw in Resources */ = {isa = PBXBuildFile; fileRef = F04B3645468416DBC8FE24BA /* sample.excalidraw */; };
+		CAC4089AB64F1FB20F6B44E2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8659B0658708C48C64B35A4A /* Assets.xcassets */; };
 		CE7076AD1F1138D2F3CCAD54 /* ExcalidrawModel in Frameworks */ = {isa = PBXBuildFile; productRef = 95B98EBF809A2099C23DA7FB /* ExcalidrawModel */; };
 		D24DD6A402E1EB6E7D7D3161 /* SmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661DF4DF2B7A007A864DFD01 /* SmokeUITests.swift */; };
 /* End PBXBuildFile section */
@@ -45,6 +46,7 @@
 		2BF9EA43F9C8D691C7F0A6AC /* ExcalidrawAppBenchmarks.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ExcalidrawAppBenchmarks.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3349E74A0542B72D9CD8FE27 /* ExcalidrawApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ExcalidrawApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		661DF4DF2B7A007A864DFD01 /* SmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeUITests.swift; sourceTree = "<group>"; };
+		8659B0658708C48C64B35A4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B6AC1B0B22AD9A2E10F2FB35 /* ExcalidrawAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ExcalidrawAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C47704B1B30F43C2F26861A2 /* CollabLiveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollabLiveUITests.swift; sourceTree = "<group>"; };
 		D2125AB83EBC165D109874A3 /* RendererComparisonBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererComparisonBenchmark.swift; sourceTree = "<group>"; };
@@ -135,6 +137,7 @@
 		EAD7B718EA5436E362643C43 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				8659B0658708C48C64B35A4A /* Assets.xcassets */,
 				15E1A9EAB0F2CFE2960655AE /* ExcalidrawApp.swift */,
 				579F8E28F6CC7CEF0CF62AB6 /* Resources */,
 			);
@@ -260,6 +263,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CAC4089AB64F1FB20F6B44E2 /* Assets.xcassets in Resources */,
 				BB2E451AC70807DB3531B87D /* sample.excalidraw in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
