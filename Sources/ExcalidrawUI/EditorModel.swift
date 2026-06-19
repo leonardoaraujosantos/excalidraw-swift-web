@@ -418,6 +418,34 @@ public final class EditorModel: ObservableObject {
         try? SceneDocument.encode(controller.scene)
     }
 
+    /// The `.excalidraw` document as its (JSON) text, for copying to the clipboard.
+    public func documentString() -> String? {
+        guard let data = documentData() else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Copy the `.excalidraw` JSON text to the system clipboard. Returns whether
+    /// anything was copied.
+    @discardableResult
+    public func copyDocumentAsText() -> Bool {
+        guard let text = documentString() else { return false }
+        Pasteboard.writeString(text)
+        return true
+    }
+
+    /// Write the current scene to a temporary `.excalidraw` file for sharing
+    /// (AirDrop / Mail / Messages / Save to Files). Returns the file URL.
+    public func writeTemporaryDocument(named name: String = "Drawing") -> URL? {
+        guard let data = documentData() else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(name).excalidraw")
+        do {
+            try data.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
     /// Load a `.excalidraw` document, replacing the current scene.
     public func loadDocument(_ data: Data) {
         guard let scene = try? SceneDocument.decode(data) else { return }
