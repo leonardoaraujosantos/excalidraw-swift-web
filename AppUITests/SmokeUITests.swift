@@ -44,6 +44,7 @@ final class SmokeUITests: XCTestCase {
         }
 
         app.buttons["export"].tap()
+        app.buttons["export-copy"].tap()
         XCTAssertTrue(app.staticTexts["exported-confirmation"].waitForExistence(timeout: 5))
     }
 
@@ -88,6 +89,7 @@ final class SmokeUITests: XCTestCase {
         }
 
         app.buttons["export"].tap()
+        app.buttons["export-copy"].tap()
         XCTAssertTrue(app.staticTexts["exported-confirmation"].waitForExistence(timeout: 5))
     }
 
@@ -217,6 +219,7 @@ final class SmokeUITests: XCTestCase {
 
         // Export still works with the GPU backend active.
         app.buttons["export"].tap()
+        app.buttons["export-copy"].tap()
         XCTAssertTrue(app.staticTexts["exported-confirmation"].waitForExistence(timeout: 5))
 
         // Switch back to Core Graphics and confirm the app is still alive.

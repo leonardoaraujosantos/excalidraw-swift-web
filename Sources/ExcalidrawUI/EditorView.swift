@@ -26,6 +26,7 @@ public struct EditorView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var importingLibrary = false
     @State private var exportingLibrary = false
+    @State private var shareItem: ShareItem?
     @FocusState private var canvasFocused: Bool
 
     private let tools: [(Tool, String)] = [
@@ -72,6 +73,13 @@ public struct EditorView: View {
         .sheet(isPresented: $model.showChartInput) { chartInputSheet }
         .sheet(isPresented: $model.showMermaidInput) { mermaidInputSheet }
         .sheet(isPresented: $model.showBenchmark) { RendererBenchmarkView() }
+        .sheet(item: $shareItem) { item in
+            #if canImport(UIKit)
+                ShareSheet(items: [item.url])
+            #else
+                Text(item.url.lastPathComponent)
+            #endif
+        }
         .alert("Link", isPresented: $model.showLinkPrompt) {
             TextField("https://example.com", text: $model.linkText)
                 .accessibilityIdentifier("link-field")
@@ -206,7 +214,7 @@ public struct EditorView: View {
             Divider().frame(height: 24)
             actionButton("arrow.uturn.backward", "undo") { model.undo() }
             actionButton("arrow.uturn.forward", "redo") { model.redo() }
-            actionButton("square.and.arrow.up", "export", action: doExport).padding(.trailing, 12)
+            exportMenu.padding(.trailing, 12)
         }
         .frame(height: 44)
         .background(.thinMaterial)
@@ -641,11 +649,38 @@ public struct EditorView: View {
         }
     }
 
-    private func doExport() {
-        guard let data = model.exportPNG() else { return }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("excalidraw-export.png")
-        try? data.write(to: url)
-        exported = true
+    /// Export menu: share/save the `.excalidraw` (send to someone, Save to
+    /// Files via the system share sheet) or copy its JSON text to the clipboard.
+    private var exportMenu: some View {
+        Menu {
+            Button {
+                shareDocument()
+            } label: {
+                Label("Send / Save .excalidraw…", systemImage: "square.and.arrow.up")
+            }
+            .accessibilityIdentifier("export-share")
+            Button {
+                copyDocumentText()
+            } label: {
+                Label("Copy as text", systemImage: "doc.on.doc")
+            }
+            .accessibilityIdentifier("export-copy")
+        } label: {
+            Image(systemName: "square.and.arrow.up").font(.title3)
+        }
+        .accessibilityIdentifier("export")
+    }
+
+    /// Write the scene to a temp `.excalidraw` and present the system share sheet
+    /// (AirDrop / Messages / Mail to send; "Save to Files" to save on the iPad).
+    private func shareDocument() {
+        guard let url = model.writeTemporaryDocument() else { return }
+        shareItem = ShareItem(url: url)
+    }
+
+    /// Copy the `.excalidraw` JSON text to the clipboard.
+    private func copyDocumentText() {
+        if model.copyDocumentAsText() { exported = true }
     }
 
     private func loadPhoto(_ item: PhotosPickerItem?) {
@@ -747,3 +782,23 @@ private struct RemoteCursorMarker: View {
         .fixedSize()
     }
 }
+
+/// A shareable item (a temp `.excalidraw` file URL) for the system share sheet.
+struct ShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+#if canImport(UIKit)
+    /// Presents the system share sheet (`UIActivityViewController`) so the user
+    /// can send the `.excalidraw` file (AirDrop / Messages / Mail), Save to Files
+    /// on the iPad, or Copy it.
+    struct ShareSheet: UIViewControllerRepresentable {
+        let items: [Any]
+        func makeUIViewController(context _: Context) -> UIActivityViewController {
+            UIActivityViewController(activityItems: items, applicationActivities: nil)
+        }
+
+        func updateUIViewController(_: UIActivityViewController, context _: Context) {}
+    }
+#endif
