@@ -32,6 +32,6 @@ final class IDCollisionTests: XCTestCase {
     func testSceneAddDeduplicatesByID() {
         var scene = Scene(elements: [rect("a")])
         scene.add(rect("a", 999)) // same id, different position
-        XCTAssertEqual(scene.elements.filter { $0.id == "a" }.count, 1)
+        XCTAssertEqual(scene.elements.count(where: { $0.id == "a" }), 1)
     }
 }
