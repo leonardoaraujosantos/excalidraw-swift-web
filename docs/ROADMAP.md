@@ -168,6 +168,8 @@ The single source of truth for what's **not** yet implemented, kept in sync with
 - ✅ **Apple Pencil hover** (17.5+) + **Pencil Pro squeeze** (`UIHoverGestureRecognizer` + `UIPencilInteraction`).
 - ✅ **Retained-layer / Metal renderer** — Phase 7.5 (above): layered split, gesture snapshots, runtime-selectable Metal GPU backend with the direct-to-`CAMetalLayer` editor hybrid.
 - ✅ **Golden-image render tests** — committed pixel references (`Tests/ExcalidrawRenderTests/Golden/`).
+- ✅ **Image broker hooks** — `EditorModel.insertImage(…)` returns the new `fileId` and fires `onImageInserted`, and `setImageFile(id:data:mimeType:)` injects bytes resolved out-of-band, so an embedder can broker image binary to its own storage and supply a collab peer's image (whose bytes never travel over the wire).
+- ✅ **Chromeless editor** — `EditorView(model:showsChrome:)` renders canvas-only so an embedder supplies its own chrome and drives the editor through `EditorModel`'s public commands (`Tool` re-exported from `ExcalidrawUI`).
 
 **Collab-oriented model internals** (built lean until Phase 8)
 - Full rocicorp fractional-indexing edge cases + legacy binding-v1 migration; property-level partial deltas & AppState history.

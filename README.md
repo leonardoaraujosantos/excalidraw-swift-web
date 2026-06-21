@@ -123,6 +123,16 @@ Both implementations are packaged for reuse in other projects.
   //           ExcalidrawCollab, ExcalidrawRender, ExcalidrawUI, RoughKit, FreehandKit, …
   ```
 
+  **Embedding the editor.** Mount `EditorView(model:)` on a caller-owned `EditorModel`. Pass `showsChrome: false` to hide the built-in toolbar, properties bar, and footer and supply your own chrome, driving the editor through the model's public commands (`select(tool:)`, `zoomIn()`/`zoomToFit()`, `exportPNG()`/`exportSVG()`, …) — `ExcalidrawUI` re-exports the `Tool` enum for this. For images, `insertImage(data:mimeType:viewSize:)` returns the new `fileId` (also delivered to the optional `onImageInserted` hook) so a host can broker the bytes to its own storage, and `setImageFile(id:data:mimeType:)` injects bytes resolved out-of-band (e.g. a collab peer's image, whose binary never travels over the wire).
+
+  ```swift
+  import ExcalidrawUI
+
+  let model = EditorModel()
+  model.onImageInserted = { fileId, data, mimeType in /* upload to your store */ }
+  EditorView(model: model, showsChrome: false)   // bring your own chrome
+  ```
+
 ## Building & running
 
 ### iOS / iPadOS (Swift)

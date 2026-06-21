@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The SwiftUI shell and platform integration that wraps the pure editor core for iOS and iPadOS. It covers the EditorModel bridge, raw touch and Apple Pencil input with palm rejection, two-finger pan/zoom, adaptive layout and theming, the command palette and keyboard shortcuts, localization with RTL, laser/eraser trails, color pickers, zoom controls, and live web embeds.
+The SwiftUI shell and platform integration that wraps the pure editor core for iOS and iPadOS. It covers the EditorModel bridge, raw touch and Apple Pencil input with palm rejection, two-finger pan/zoom, adaptive layout and theming, an optional chromeless mode for embedder-supplied chrome, image broker hooks for out-of-band binary, the command palette and keyboard shortcuts, localization with RTL, laser/eraser trails, color pickers, zoom controls, and live web embeds.
 
 ## Requirements
 
@@ -55,6 +55,27 @@ The system SHALL place the toolbar and properties at the bottom in compact (iPho
 - GIVEN the editor model
 - WHEN the theme and zen-mode toggles are invoked
 - THEN the system SHALL flip the theme and zen state accordingly (src: Tests/ExcalidrawUITests/EditorModelTests.swift:561)
+
+### Requirement: Chromeless editor for embedder-supplied chrome
+The system SHALL expose `EditorView(model:showsChrome:)` where, when `showsChrome` is false, only the canvas renders — the built-in toolbar, properties bar, and footer are hidden so an embedder can supply its own chrome and drive the editor through `EditorModel`'s public commands (`select(tool:)`, `zoomIn()`/`zoomOut()`/`zoomToFit()`, `exportPNG()`/`exportSVG()`, …), while model-raised sheets and alerts (export, link, embed) stay attached so embedder-triggered actions still present. The behavior SHALL be neutral when `showsChrome` defaults to true, and `ExcalidrawUI` SHALL re-export the `Tool` enum so consumers can name the type via `import ExcalidrawUI` alone (src: Sources/ExcalidrawUI/EditorView.swift:60, Sources/ExcalidrawUI/Exports.swift:5).
+
+#### Scenario: Chrome hidden, canvas-only
+- GIVEN an `EditorView(model:showsChrome:)` mounted with `showsChrome` false
+- WHEN the view body renders
+- THEN the system SHALL render only the canvas and SHALL hide the toolbar, properties bar, and footer (src: Sources/ExcalidrawUI/EditorView.swift:71)
+
+### Requirement: Embedder image broker hooks
+The system SHALL let an embedder broker image bytes out-of-band: `EditorModel.insertImage(data:mimeType:viewSize:)` SHALL return the new element's image `fileId` and fire the optional `onImageInserted(fileId:data:mimeType:)` callback with the same fileId and raw bytes, and `EditorModel.setImageFile(id:data:mimeType:)` SHALL supply the bytes for an element resolved out-of-band — e.g. a peer's image whose binary never travels over the collab stream — so the renderer can draw it (src: Sources/ExcalidrawUI/EditorModel.swift:682, Sources/ExcalidrawUI/EditorModel.swift:710).
+
+#### Scenario: Insert returns fileId and fires the broker hook
+- GIVEN an editor model with an `onImageInserted` handler set
+- WHEN a local image is inserted
+- THEN the system SHALL return its `fileId` and SHALL hand the same fileId and bytes to the handler (src: Tests/ExcalidrawUITests/EditorModelTests.swift:161)
+
+#### Scenario: Injecting remote bytes for a brokered element
+- GIVEN an image element present without local bytes
+- WHEN the host injects the bytes via `setImageFile`
+- THEN the system SHALL store them so the element can render (src: Tests/ExcalidrawUITests/EditorModelTests.swift:178)
 
 ### Requirement: Command palette and keyboard shortcuts
 The system SHALL open a fuzzy-search command palette over roughly 24 commands on ⌘K, SHALL select tools with single keys (V/R/D/O/A/L/P/T/E/H…), delete with Backspace/Delete, run undo/redo/copy/cut/paste/duplicate/selectAll/group/ungroup/zoom on ⌘ combinations, spawn a linked flowchart node on Tab, and choose direction with ⌥+arrow (src: Sources/ExcalidrawEditor/CommandRegistry.swift:17, Sources/ExcalidrawEditor/Shortcuts.swift:32, Sources/ExcalidrawUI/EditorView.swift:585).
