@@ -18,7 +18,9 @@ public extension EditorController {
         // every other insert) and remap each intra-batch reference — the bound
         // text, the text's container, and the arrow start/end bindings.
         var idMap: [String: String] = [:]
-        for element in elements { idMap[element.id] = nextID() }
+        for element in elements {
+            idMap[element.id] = nextID()
+        }
         for index in elements.indices {
             elements[index].base.x += point.x - minX
             elements[index].base.y += point.y - minY
@@ -41,10 +43,10 @@ public extension EditorController {
             element.base.boundElements = bound.map { BoundElement(id: map[$0.id] ?? $0.id, type: $0.type) }
         }
         switch element.kind {
-        case .text(var props):
+        case var .text(props):
             if let container = props.containerId, let mapped = map[container] { props.containerId = mapped }
             element.kind = .text(props)
-        case .arrow(var props):
+        case var .arrow(props):
             if let start = props.startBinding?.elementId, let mapped = map[start] {
                 props.startBinding?.elementId = mapped
             }
