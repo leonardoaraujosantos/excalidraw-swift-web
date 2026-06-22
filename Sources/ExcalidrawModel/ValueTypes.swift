@@ -37,6 +37,20 @@ public struct FixedPointBinding: Codable, Equatable, Sendable {
         self.fixedPoint = fixedPoint
         self.mode = mode
     }
+
+    private enum CodingKeys: String, CodingKey { case elementId, fixedPoint, mode }
+
+    // Tolerant decode: real-world bindings (an agent-authored connector, or
+    // upstream Excalidraw's focus/gap binding) often carry only `elementId` and
+    // omit `fixedPoint`/`mode`. Those keys default here so one such binding can't
+    // make the whole `[ExcalidrawElement]` decode throw — which would otherwise
+    // blank the entire board on a strict (Swift) client.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        elementId = try c.decodeIfPresent(String.self, forKey: .elementId) ?? ""
+        fixedPoint = try c.decodeIfPresent(Point.self, forKey: .fixedPoint) ?? Point(0, 0)
+        mode = try c.decodeIfPresent(BindMode.self, forKey: .mode) ?? .orbit
+    }
 }
 
 /// A user-pinned segment of an elbow arrow (`FixedSegment`).
