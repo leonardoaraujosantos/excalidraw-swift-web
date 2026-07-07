@@ -50,13 +50,15 @@
 - [ ] 6.2 Route touch and stylus input (incl. pressure) to the active tool
 - [ ] 6.3 Instrumented/UI parity tests for the core editing flows
 
-## 7. Collaboration (parity: collaboration, collaboration-yjs)
+## 7. Collaboration (parity: collaboration — custom WebSocket protocol v1, pure Kotlin, no NDK/Yjs)
 
-- [ ] 7.1 Select the Yjs implementation (y-crdt JNI binding vs pure-Kotlin port) by running both through the cross-peer convergence suite
-- [ ] 7.2 Implement `collab-yjs` adapter: id-keyed per-element map, soft-delete tombstones, fractional-index z-order — isolated from the editor core
-- [ ] 7.3 Wire join/leave, presence, and live sync into the app host
-- [ ] 7.4 Cross-peer interop test: mixed Android + iOS/web room converges on concurrent add/move/delete/reorder
-- [ ] 7.5 Late-joiner test: Android joins an existing iOS/web room and receives full state
+- [ ] 7.1 Implement `collab-kotlin` protocol codec: the `Message` union (`join`, `room-state`, `peer-joined/left`, `presence`, `pointer`, `element-updates`, `scene-snapshot`, `ping`/`ack`) as kotlinx.serialization JSON, wire-compatible with Swift/TS (incl. `protocol` key, presence `pointer: null`, elements as full objects)
+- [ ] 7.2 Port `reconcile`: `preferRemote`/`reconcileElements`/`changedByReconcile` (LWW: version desc, versionNonce asc) with unit tests mirroring the Swift/TS suite
+- [ ] 7.3 Bump `version` + fresh `versionNonce` on editor edits (add/move/resize/delete) so LWW resolves races; expose version/versionNonce in the model
+- [ ] 7.4 Implement the WebSocket client (OkHttp): connect, send `join`, apply `room-state`, send/apply `element-updates`, handle `ping`/`ack`; isolated from the editor core
+- [ ] 7.5 Wire join/leave + live element sync into the app host (room connect UI)
+- [ ] 7.6 Cross-language wire conformance test: decode Swift/TS-shaped fixtures; canonical-encode matches the shared fixtures
+- [ ] 7.7 Live convergence test against the actual Node relay with a web-protocol peer: mixed room converges on concurrent add/move/delete; late joiner receives full `room-state`
 
 ## 8. Export
 
@@ -68,7 +70,7 @@
 
 - [x] 9.1 Add an Android CI job: `assemble`, unit tests, instrumented/UI tests, ktlint/detekt
 - [ ] 9.2 Add cross-client golden round-trip + live collaboration interop tests to CI
-- [x] 9.3 Update `openspec/project.md` baseline: multi-platform (iOS/Swift, web/Svelte, Android/Kotlin) unified by `.excalidraw` format + Yjs wire protocol
+- [x] 9.3 Update `openspec/project.md` baseline: multi-platform (iOS/Swift, web/Svelte, Android/Kotlin) unified by `.excalidraw` format + custom WebSocket protocol v1
 - [x] 9.4 Update repo README/docs to document the Android client and how to build/run it
 
 ## 10. Validation & archive

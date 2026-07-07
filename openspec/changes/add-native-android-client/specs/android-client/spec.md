@@ -102,27 +102,42 @@ scenes SHALL open on iOS/web unchanged.
 - **THEN** the missing keys SHALL take default values and the scene SHALL load
   rather than failing
 
-### Requirement: Live Yjs collaboration interop with iOS and web peers
+### Requirement: Live collaboration interop with iOS and web peers
 
-The Android client SHALL join collaboration rooms over the existing Yjs wire
-protocol and SHALL interoperate with iOS and web peers in the same room. Its CRDT
-document SHALL use the shared shape required by `collaboration-yjs`: an id-keyed
-per-element map, soft-delete tombstones, and fractional index as the z-order
-source of truth. Concurrent edits from mixed clients SHALL converge to the same
-scene on all peers. CRDT/transport concerns SHALL be isolated from the editor
-core (no core coupling).
+The Android client SHALL join collaboration rooms over the existing custom
+WebSocket protocol (protocol v1) and SHALL interoperate with iOS and web peers in
+the same room through the existing Node relay. It SHALL implement the shared
+`Message` union in pure Kotlin — `join`, `room-state`, `peer-joined`,
+`peer-left`, `presence`, `pointer`, `element-updates`, `scene-snapshot`, `ping`,
+`ack` — encoded as JSON that is wire-compatible with the Swift and TypeScript
+clients (the room is selected by the `join` message, not the URL). It SHALL
+reconcile concurrent edits by the shared last-writer-wins rule — higher
+`version` wins, ties break on the lower `versionNonce` — so mixed-client edits
+converge on all peers with no CRDT and no central authority. Local edits SHALL
+bump `version` and assign a fresh `versionNonce` before broadcast as
+`element-updates`. Transport and reconcile concerns SHALL be isolated from the
+editor core (no core coupling). The Android client SHALL NOT require Yjs, a CRDT
+library, or the NDK.
 
 #### Scenario: Mixed-client room converges
-- **GIVEN** an Android client and an iOS or web client in the same room
-- **WHEN** both make concurrent edits (add, move, delete, reorder)
-- **THEN** after sync all peers SHALL show the same scene, with z-order resolved
-  by fractional index and deletions represented as tombstones
+- **WHEN** an Android client and an iOS or web client edit the same room
+  concurrently (add, move, delete)
+- **THEN** each edit is broadcast as `element-updates` with a bumped
+  `version`/`versionNonce`, and after exchange all peers SHALL reconcile to the
+  same element set by the shared last-writer-wins rule
 
 #### Scenario: Late joiner receives full state
 - **GIVEN** an existing room with content authored by iOS/web peers
-- **WHEN** an Android client joins the room
-- **THEN** it SHALL receive and render the full current scene, then stay in sync
-  with subsequent edits
+- **WHEN** an Android client sends `join`
+- **THEN** the relay SHALL reply with `room-state` carrying the current roster
+  and scene, and the Android client SHALL render it and then stay in sync with
+  subsequent `element-updates`
+
+#### Scenario: Wire compatibility with the shared protocol
+- **GIVEN** a protocol-v1 JSON message produced by the Swift or TypeScript client
+- **WHEN** the Android codec decodes it, and re-encodes an equivalent message
+- **THEN** the message SHALL decode without loss and the re-encoded form SHALL be
+  accepted by the relay and the other clients (byte-compatible canonical JSON)
 
 ### Requirement: Export
 

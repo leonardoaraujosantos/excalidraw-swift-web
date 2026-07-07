@@ -9,8 +9,14 @@ The product today is two clients over one shared design:
   behavior (via the TS packages), exercised by the same behavioral capability
   specs.
 
-Both interoperate through two contracts: the `.excalidraw` **file format** and
-the **Yjs collaboration wire protocol** (`collaboration`, `collaboration-yjs`).
+Both interoperate through two contracts: the `.excalidraw` **file format** and a
+**custom versioned-reconciliation WebSocket protocol** (`collaboration`,
+protocol v1). Note: the interop path is **not** Yjs — iOS
+(`ExcalidrawCollab`, pure Swift over `URLSessionWebSocketTask`) and web
+(`excalidraw-svelte/protocol`, pure TypeScript over `WebSocket`) both speak the
+same JSON `Message` union and reconcile by last-writer-wins on
+`(version desc, versionNonce asc)`. Yjs (`collaboration-yjs`) is an optional,
+web-only provider adapter, not the cross-client contract.
 
 Android has no native client. The decision (confirmed with the maintainer) is a
 **full independent Kotlin + Jetpack Compose rewrite** — no Swift reuse, no
@@ -31,7 +37,8 @@ Constraints:
 **Goals:**
 - A native, offline-capable Android editor with full v1 parity: all drawing
   tools, selection/transform, undo/redo, hand-drawn rendering, export.
-- Live Yjs collaboration interoperable with iOS and web in the same room.
+- Live collaboration interoperable with iOS and web in the same room, over the
+  existing custom WebSocket protocol (protocol v1) and Node relay.
 - `.excalidraw` round-trip fidelity: scenes authored on any client open on
   Android unchanged, and Android-authored scenes open elsewhere unchanged
   (including unmodelled fields via `customData`/appState passthrough).
@@ -42,8 +49,9 @@ Constraints:
 - Reusing or cross-compiling the Swift/TypeScript code (explicitly rejected).
 - A GPU (Vulkan) rendering backend in v1 — Compose Canvas (Skia) only; a GPU
   backend is a possible later change, mirroring how Metal is optional on iOS.
-- Changing the `.excalidraw` format or the Yjs wire protocol. Android conforms to
-  them as-is; any ambiguity is resolved by matching observed iOS/web behavior.
+- Changing the `.excalidraw` format or the collaboration wire protocol. Android
+  conforms to them as-is; any ambiguity is resolved by matching observed iOS/web
+  behavior. (Yjs is a web-only optional adapter and is out of scope for Android.)
 - SDF/GPU text, incremental-redraw GPU optimizations (out of scope, as on iOS).
 - Tablet/foldable-specific adaptive layouts beyond what parity requires (a later
   change, analogous to iOS iPad adaptivity).
@@ -78,7 +86,7 @@ android/
   freehand-kotlin/  (FreehandKit/perfect-freehand port: pressure outlines)
   render-compose/   (scene renderer on Compose Canvas / Skia)
   editor/           (ExcalidrawEditor analogue: pure, Compose-free state machine)
-  collab-yjs/       (Yjs adapter: id-keyed map, tombstones, fractional index)
+  collab-kotlin/    (protocol-v1 Message codec, LWW reconcile, OkHttp WebSocket)
   app/              (Jetpack Compose UI host, input, navigation, export)
 ```
 - **Why:** Each Kotlin module maps 1:1 onto an existing capability spec, so the
@@ -96,18 +104,26 @@ layered cache strategy analogous to the iOS Core Graphics `SceneRenderer`.
 - **Alternative considered:** Android `View`/`Canvas` (older API) — rejected for
   worse composability with the Compose UI shell.
 
-### Decision: Yjs interop via a Kotlin y-crdt binding, conforming to the existing wire protocol
-Use a Kotlin/JVM binding to y-crdt (Yjs' Rust core) — or a vetted Kotlin Yjs
-port — behind a `collab-yjs` adapter that implements the same document shape the
-`collaboration-yjs` spec mandates: an id-keyed per-element map, soft-delete
-tombstones, and fractional index as the z-order source of truth.
-- **Why:** The wire protocol and CRDT document shape are fixed by the existing
-  clients. Reusing a real y-crdt implementation guarantees update/merge
-  compatibility so a mixed iOS/web/Android room converges. The adapter keeps CRDT
-  concerns out of the `editor` module (the spec's "no core coupling" rule).
-- **Trade-off:** Adds a native (JNI) dependency if using the Rust core. Mitigated
-  by isolating it behind the `collab-yjs` module and covering it with cross-peer
-  interop tests.
+### Decision: Pure-Kotlin reimplementation of the custom WebSocket protocol (no NDK, no Yjs)
+Reimplement the existing protocol-v1 collaboration in pure Kotlin in a
+`collab-kotlin` module: (a) the JSON `Message` union codec (`join`, `room-state`,
+`peer-joined/left`, `presence`, `pointer`, `element-updates`, `scene-snapshot`,
+`ping`/`ack`) matching the Swift/TS wire byte-for-meaning; (b) the shared
+last-writer-wins `reconcile` (`version` desc, `versionNonce` asc); and (c) a
+WebSocket client (OkHttp) that connects to the existing Node relay, sends `join`,
+applies `room-state`, and exchanges `element-updates`.
+- **Why:** The actual iOS↔web interop contract is this custom JSON WebSocket
+  protocol, not Yjs. iOS does it in pure Swift and web in pure TypeScript with no
+  native binding; Kotlin does the same. This removes the earlier assumed NDK /
+  y-crdt dependency entirely. Reconcile is a deterministic total order, so a
+  mixed iOS/web/Android room converges with no central authority or CRDT.
+- **Alternatives considered:** (a) a y-crdt JNI binding — rejected: it is not the
+  wire the other clients speak, would require the NDK, and would not interoperate
+  with the iOS/web relay; (b) a pure-Kotlin Yjs port — same non-interop problem.
+- **Trade-off:** Element edits must bump `version` + a fresh `versionNonce` so the
+  LWW rule resolves races (the Swift/web clients do this); the `editor` module
+  owns that, and `collab-kotlin` stays transport/reconcile only (no editor
+  coupling).
 
 ### Decision: Conformance proven by cross-client tests, not by shared code
 Parity is enforced with (a) per-module Kotlin unit tests against the behavioral
@@ -126,10 +142,9 @@ iOS/web client edit the same room and must converge.
 - **Hand-drawn look diverges from iOS/web** (independent rough/freehand ports) →
   Golden-image tolerance tests against reference renders; accept "visually
   faithful, not line-identical" (same standard the iOS specs already set).
-- **Yjs binding maturity / JNI complexity on Android** → Prefer the vetted y-crdt
-  core behind a thin adapter; gate collaboration behind interop tests; fall back
-  to a pure-Kotlin Yjs port only if it passes the same cross-peer convergence
-  suite.
+- **Wire drift from iOS/web** (independent Kotlin codec) → Shared cross-language
+  conformance fixtures (canonical JSON) plus a live convergence test against the
+  actual Node relay with a real web-protocol peer; any mismatch is a failing test.
 - **`.excalidraw` unmodelled-field loss** (a common rewrite bug) → The
   `data-model` "lossless preservation" requirement is a hard conformance target;
   round-trip tests assert `customData`/appState passthrough.
@@ -146,7 +161,8 @@ Additive only — no change to existing clients or contracts.
 3. Implement `rough-kotlin`, `freehand-kotlin`, `render-compose`; golden-image
    tests.
 4. Implement `editor` (UI-free) + the Compose `app` host; parity UI tests.
-5. Implement `collab-yjs`; cross-peer interop test against iOS/web.
+5. Implement `collab-kotlin` (protocol codec + reconcile + OkHttp WebSocket);
+   cross-peer convergence test against the Node relay with a web-protocol peer.
 6. Add the Android CI job (assemble, unit, instrumented/UI, ktlint/detekt,
    golden round-trip, interop).
 7. Update `openspec/project.md` baseline to multi-platform.
@@ -156,9 +172,10 @@ its CI job removes it with zero impact on iOS/web.
 
 ## Open Questions
 
-- Which Yjs implementation on Android — a JNI binding to the y-crdt Rust core, or
-  a pure-Kotlin Yjs port? Decide by running both through the cross-peer
-  convergence suite; pick the one that passes with the least footprint.
+- (Resolved) Collaboration transport: the interop contract is the custom
+  protocol-v1 WebSocket JSON messages + LWW reconcile, reimplemented in pure
+  Kotlin (OkHttp). No Yjs/CRDT, no NDK — this matches how iOS (Swift) and web (TS)
+  actually interoperate.
 - Export formats for v1 — confirm parity set (PNG and `.excalidraw` at minimum;
   SVG parity with iOS TBD).
 - Minimum Android API level and stylus support matrix (target modern Compose;
