@@ -18,6 +18,21 @@ object ElementFactory {
     fun newId(random: Random = Random.Default): String =
         (1..20).map { ALPHABET[random.nextInt(ALPHABET.length)] }.joinToString("")
 
+    /**
+     * Return a copy of [obj] with `version` incremented and a fresh
+     * `versionNonce`, so a local edit outranks peers' copies under the shared
+     * last-writer-wins reconcile rule (higher version wins; ties → lower nonce).
+     */
+    fun bumped(obj: JsonObject, random: Random = Random.Default): JsonObject {
+        val v = (obj["version"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 1
+        return JsonObject(
+            obj + mapOf(
+                "version" to JsonPrimitive(v + 1),
+                "versionNonce" to JsonPrimitive(random.nextLong(1, Int.MAX_VALUE.toLong())),
+            ),
+        )
+    }
+
     private fun base(
         type: String,
         x: Double,
@@ -40,6 +55,8 @@ object ElementFactory {
             put("width", JsonPrimitive(width))
             put("height", JsonPrimitive(height))
             put("angle", JsonPrimitive(0.0))
+            put("version", JsonPrimitive(1))
+            put("versionNonce", JsonPrimitive(Random.nextLong(1, Int.MAX_VALUE.toLong())))
             put("strokeColor", JsonPrimitive(strokeColor))
             put("backgroundColor", JsonPrimitive(backgroundColor))
             put("fillStyle", JsonPrimitive("solid"))

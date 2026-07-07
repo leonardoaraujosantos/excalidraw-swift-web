@@ -38,7 +38,23 @@ class SceneState {
     private var appState: JsonObject = JsonObject(emptyMap())
     private var files: JsonObject = JsonObject(emptyMap())
 
+    /** Set by [CollabSession] while connected: broadcast a batch of changed elements. */
+    var onLocalChange: ((List<JsonObject>) -> Unit)? = null
+
     private fun bump() { revision++ }
+
+    /** Public revision bump for off-thread callbacks (e.g. collab connect state). */
+    fun bumpRevision() { revision++ }
+
+    private fun broadcast(changed: List<JsonObject>) {
+        if (changed.isNotEmpty()) onLocalChange?.invoke(changed)
+    }
+
+    /** Reconcile a peer's element batch into the scene (no re-broadcast). */
+    fun applyRemote(elements: List<JsonObject>) {
+        editor.applyRemote(elements)
+        bump()
+    }
 
     fun load(file: ExcalidrawFile) {
         editor.load(file.elements)
@@ -64,7 +80,7 @@ class SceneState {
 
     // --- Editing (each bumps revision) ---
 
-    fun add(obj: JsonObject) { editor.add(obj); bump() }
+    fun add(obj: JsonObject) { editor.add(obj); bump(); broadcast(listOf(obj)) }
 
     fun hitId(scene: Offset): String? =
         editor.let {
@@ -82,9 +98,20 @@ class SceneState {
     fun beginTransform() { editor.beginTransform() }
     fun translateSelection(dx: Double, dy: Double) { editor.translateSelection(dx, dy); bump() }
     fun resizeSelection(handle: Handle, dx: Double, dy: Double) { editor.resizeSelection(handle, dx, dy); bump() }
-    fun endTransform() { editor.endTransform() }
 
-    fun deleteSelection() { editor.deleteSelection(); bump() }
+    fun endTransform() {
+        val ids = editor.selection
+        editor.endTransform()
+        bump()
+        broadcast(editor.elements.filter { com.excalidraw.model.ElementView(it).id in ids })
+    }
+
+    fun deleteSelection() {
+        val ids = editor.selection
+        editor.deleteSelection()
+        bump()
+        broadcast(editor.elements.filter { com.excalidraw.model.ElementView(it).id in ids })
+    }
     fun undo() { if (editor.undo()) bump() }
     fun redo() { if (editor.redo()) bump() }
 

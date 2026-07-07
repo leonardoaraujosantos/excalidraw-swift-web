@@ -53,9 +53,10 @@ fun CanvasScreen(scene: SceneState) {
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCurrent by remember { mutableStateOf<Offset?>(null) }
     var freehand by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    val session = remember { CollabSession(scene, url = "ws://10.0.2.2:3001", room = "demo") }
 
     Column(Modifier.fillMaxSize().background(Color.White)) {
-        Toolbar(scene)
+        Toolbar(scene, session)
         Box(Modifier.fillMaxSize()) {
             Canvas(
                 modifier = Modifier
@@ -194,7 +195,7 @@ private fun commitShape(scene: SceneState, a: Offset, b: Offset) {
 }
 
 @Composable
-private fun Toolbar(scene: SceneState) {
+private fun Toolbar(scene: SceneState, session: CollabSession) {
     val rev = scene.revision // resubscribe so undo/redo/delete enablement updates
     Row(
         Modifier
@@ -219,6 +220,16 @@ private fun Toolbar(scene: SceneState) {
             val png = Exporter.exportPng(context, scene)
             val doc = Exporter.exportExcalidraw(context, scene)
             Toast.makeText(context, "Exported ${png.name} + ${doc.name}", Toast.LENGTH_SHORT).show()
+        }
+        val collabConnected = session.connected
+        ToolButton(if (collabConnected) "● Live" else "Collab", selected = collabConnected) {
+            if (collabConnected) {
+                session.disconnect()
+                Toast.makeText(context, "Disconnected", Toast.LENGTH_SHORT).show()
+            } else {
+                session.connect()
+                Toast.makeText(context, "Connecting to room 'demo'…", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

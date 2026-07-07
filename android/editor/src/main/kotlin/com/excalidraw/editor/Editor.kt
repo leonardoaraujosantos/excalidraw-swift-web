@@ -1,7 +1,10 @@
 package com.excalidraw.editor
 
+import com.excalidraw.model.ElementFactory
 import com.excalidraw.model.ElementView
+import com.excalidraw.model.Reconcile
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /** Resize handles on the selection bounding box. */
 enum class Handle { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT }
@@ -18,6 +21,10 @@ class Editor {
         private set
     var selection: Set<String> = emptySet()
         private set
+
+    /** Non-deleted elements (soft-deletes stay in [elements] for collab convergence). */
+    val visibleElements: List<JsonObject>
+        get() = elements.filterNot { ElementView(it).isDeleted }
 
     private val undoStack = ArrayDeque<List<JsonObject>>()
     private val redoStack = ArrayDeque<List<JsonObject>>()
@@ -51,11 +58,27 @@ class Editor {
         selection = setOf(idOf(obj))
     }
 
+    /** Soft-delete (isDeleted=true + bumped version) so the deletion propagates to peers. */
     fun deleteSelection() {
         if (selection.isEmpty()) return
         pushHistory()
-        elements = elements.filterNot { idOf(it) in selection }
+        elements = elements.map {
+            if (idOf(it) in selection) {
+                ElementFactory.bumped(JsonObject(it + mapOf("isDeleted" to JsonPrimitive(true))))
+            } else {
+                it
+            }
+        }
         selection = emptySet()
+    }
+
+    /** Elements changed since [beginTransform]/[since] with bumped versions — the collab broadcast set. */
+    fun changedSince(since: List<JsonObject>): List<JsonObject> {
+        val prior = since.associateBy { idOf(it) }
+        return elements.filter { el ->
+            val before = prior[idOf(el)]
+            before == null || ElementView(before).version != ElementView(el).version
+        }
     }
 
     // --- Selection ---
@@ -112,7 +135,18 @@ class Editor {
     }
 
     fun endTransform() {
+        // Bump version + nonce on the transformed elements so the edit outranks
+        // peers' copies under last-writer-wins when broadcast.
+        if (baseline != null && selection.isNotEmpty()) {
+            elements = elements.map { if (idOf(it) in selection) ElementFactory.bumped(it) else it }
+        }
         baseline = null
+    }
+
+    /** Merge a peer's element batch by the shared last-writer-wins reconcile rule. */
+    fun applyRemote(remote: List<JsonObject>) {
+        elements = Reconcile.reconcileElements(elements, remote)
+        pruneSelection()
     }
 
     // --- History ---

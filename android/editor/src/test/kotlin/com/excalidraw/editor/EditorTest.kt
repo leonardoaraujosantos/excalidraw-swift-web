@@ -86,14 +86,45 @@ class EditorTest {
     }
 
     @Test
-    fun deleteRemovesSelectionAndUndoRestores() {
+    fun deleteSoftDeletesSelectionAndUndoRestores() {
         val e = editorWith("a", "b")
         e.selectAt(40.0, 30.0)
+        val deletedId = e.selection.single()
         e.deleteSelection()
-        assertEquals(1, e.elements.size)
+        // Soft-delete: element stays in the list (for collab convergence) but is hidden.
+        assertEquals(2, e.elements.size)
+        assertEquals(1, e.visibleElements.size)
+        val deleted = e.elements.first { ElementView(it).id == deletedId }
+        assertTrue(ElementView(deleted).isDeleted)
+        assertEquals(2, ElementView(deleted).version) // bumped so peers converge on the deletion
         assertTrue(e.selection.isEmpty())
         assertTrue(e.undo())
-        assertEquals(2, e.elements.size)
+        assertEquals(2, e.visibleElements.size)
+    }
+
+    @Test
+    fun endTransformBumpsVersionForBroadcast() {
+        val e = editorWith("a")
+        e.selectAt(40.0, 30.0)
+        val before = ElementView(e.elements.first()).version
+        e.beginTransform()
+        e.translateSelection(10.0, 10.0)
+        e.endTransform()
+        assertTrue(ElementView(e.elements.first()).version > before)
+    }
+
+    @Test
+    fun applyRemoteReconcilesByLastWriterWins() {
+        val e = editorWith("a")
+        val local = e.elements.first()
+        // Remote copy of "a" with a higher version and moved x should win.
+        val remote = ElementFactory.bumped(
+            ElementGeometry.translate(local, 500.0, 0.0),
+        )
+        e.applyRemote(listOf(remote))
+        val merged = e.elements.first { ElementView(it).id == "a" }
+        assertEquals(500.0, ElementView(merged).x, 0.0001)
+        assertEquals(1, e.elements.size)
     }
 
     @Test

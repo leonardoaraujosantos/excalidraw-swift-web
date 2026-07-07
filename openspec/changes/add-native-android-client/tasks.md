@@ -52,13 +52,13 @@
 
 ## 7. Collaboration (parity: collaboration — custom WebSocket protocol v1, pure Kotlin, no NDK/Yjs)
 
-- [ ] 7.1 Implement `collab-kotlin` protocol codec: the `Message` union (`join`, `room-state`, `peer-joined/left`, `presence`, `pointer`, `element-updates`, `scene-snapshot`, `ping`/`ack`) as kotlinx.serialization JSON, wire-compatible with Swift/TS (incl. `protocol` key, presence `pointer: null`, elements as full objects)
-- [ ] 7.2 Port `reconcile`: `preferRemote`/`reconcileElements`/`changedByReconcile` (LWW: version desc, versionNonce asc) with unit tests mirroring the Swift/TS suite
-- [ ] 7.3 Bump `version` + fresh `versionNonce` on editor edits (add/move/resize/delete) so LWW resolves races; expose version/versionNonce in the model
-- [ ] 7.4 Implement the WebSocket client (OkHttp): connect, send `join`, apply `room-state`, send/apply `element-updates`, handle `ping`/`ack`; isolated from the editor core
-- [ ] 7.5 Wire join/leave + live element sync into the app host (room connect UI)
-- [ ] 7.6 Cross-language wire conformance test: decode Swift/TS-shaped fixtures; canonical-encode matches the shared fixtures
-- [ ] 7.7 Live convergence test against the actual Node relay with a web-protocol peer: mixed room converges on concurrent add/move/delete; late joiner receives full `room-state`
+- [x] 7.1 Implement `collab-kotlin` protocol codec: the `Message` union (`join`, `room-state`, `peer-joined/left`, `presence`, `pointer`, `element-updates`, `scene-snapshot`, `ping`/`ack`) as kotlinx.serialization JSON, wire-compatible with Swift/TS (incl. `protocol` key, presence `pointer: null`, elements as full objects)
+- [x] 7.2 Port `reconcile`: `preferRemote`/`reconcileElements`/`changedByReconcile` (LWW: version desc, versionNonce asc) with unit tests mirroring the Swift/TS suite
+- [x] 7.3 Bump `version` + fresh `versionNonce` on editor edits (add/move/resize/delete) so LWW resolves races; expose version/versionNonce in the model
+- [x] 7.4 Implement the WebSocket client (OkHttp): connect, send `join`, apply `room-state`, send/apply `element-updates`, handle `ping`/`ack`; isolated from the editor core
+- [x] 7.5 Wire join/leave + live element sync into the app host (room connect UI)
+- [x] 7.6 Cross-language wire conformance test: decode Swift/TS-shaped fixtures; canonical-encode matches the shared fixtures
+- [x] 7.7 Live convergence test against the actual Node relay with a web-protocol peer: mixed room converges on concurrent add/move/delete; late joiner receives full `room-state`
 
 ## 8. Export
 

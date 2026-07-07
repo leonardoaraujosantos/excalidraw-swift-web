@@ -53,6 +53,8 @@ class ElementView(val raw: JsonObject) {
     val roughness: Double get() = num("roughness") ?: 1.0
     val opacity: Double get() = num("opacity") ?: 100.0
     val seed: Long get() = num("seed")?.toLong() ?: 1L
+    val version: Int get() = num("version")?.toInt() ?: 1
+    val versionNonce: Long get() = num("versionNonce")?.toLong() ?: 0L
     val isDeleted: Boolean get() = (raw["isDeleted"] as? JsonPrimitive)?.booleanOrNull ?: false
     val text: String? get() = str("text")
     val fontSize: Double get() = num("fontSize") ?: 20.0

@@ -2,12 +2,13 @@
 
 An independent native Android reimplementation of Excalidraw. It shares **no
 code** with the Swift/iOS or web clients — only the two cross-client contracts:
-the `.excalidraw` file format and the Yjs collaboration wire protocol. See
+the `.excalidraw` file format and the custom versioned-reconciliation WebSocket
+collaboration protocol (protocol v1; **not** Yjs). See
 `openspec/specs/android-client/spec.md` and the `add-native-android-client`
 OpenSpec change for the behavioral contract, and `../openspec/project.md` for
 the multi-platform overview.
 
-## Status — Milestones 1–2 (implemented & verified on emulator)
+## Status — single-user editor + live collaboration (verified on emulator)
 
 - `.excalidraw` model with **lenient decode** (missing keys default; tolerant
   arrow bindings) and **lossless round-trip** of unmodelled data
@@ -21,9 +22,18 @@ the multi-platform overview.
   strokes + hachure fills, seeded RNG) and perfect-freehand (`:freehand-kotlin`
   — variable-width ink outlines), wired into the renderer. Unit-tested (9 + 6
   tests).
+- **Selection/transform + history:** `:editor` (pure, Compose-free) — tap-select,
+  drag-move, corner-handle resize, undo/redo, soft-delete. (8 tests)
+- **Export:** PNG (rasterized from the renderer) + `.excalidraw` (lossless).
+- **Live collaboration:** `:collab-kotlin` — a pure-Kotlin reimplementation of
+  the custom protocol-v1 WebSocket JSON codec + last-writer-wins reconcile +
+  OkHttp client. **No NDK, no Yjs/CRDT.** Interoperates with the iOS and web
+  clients through the existing Node relay (verified live against the real
+  TypeScript relay: mixed-room convergence + a web-peer edit rendering on the
+  Android emulator). (9 tests incl. cross-relay integration)
 
-**Not yet (later milestones):** selection/transform, undo/redo, full tool set,
-export, and live Yjs collaboration. Tracked in
+**Not yet (later milestones):** presence/cursors UI, full tool set, stylus
+pressure, golden-image reference tests. Tracked in
 `../openspec/changes/add-native-android-client/tasks.md`.
 
 ## Toolchain
