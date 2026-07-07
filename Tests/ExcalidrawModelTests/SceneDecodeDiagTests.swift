@@ -1,7 +1,6 @@
 import ExcalidrawMath
 import Foundation
 import XCTest
-
 @testable import ExcalidrawModel
 
 final class SceneDecodeDiagTests: XCTestCase {

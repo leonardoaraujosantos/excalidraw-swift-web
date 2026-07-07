@@ -49,10 +49,17 @@ The system SHALL allow an element to belong to multiple groups via an ordered `g
 ### Requirement: Arrow and bound-element references
 The system SHALL model arrow-to-shape binding as a `FixedPointBinding` storing the target `elementId`, a fixed-point ratio in [0,1] on each axis, and a containment `mode` (inside/orbit/skip), and SHALL list text/arrow attachments on a shape via a `boundElements` array of `{id, type}` (src: Sources/ExcalidrawModel/ValueTypes.swift:27).
 
+The system SHALL decode a `FixedPointBinding` tolerantly, defaulting a missing `fixedPoint` and `mode` when a binding carries only `elementId` (as produced by agent-authored connectors or upstream focus/gap bindings), so that one such binding cannot make the whole `[ExcalidrawElement]` decode throw and blank the board (src: Sources/ExcalidrawModel/ValueTypes.swift:48).
+
 #### Scenario: Binding survives shape movement
 - GIVEN an arrow bound to a shape by fixed-point ratio
 - WHEN the shape moves
 - THEN the binding SHALL resolve to the corresponding scene point on the moved shape (src: Sources/ExcalidrawModel/ValueTypes.swift:27)
+
+#### Scenario: Binding without fixedPoint/mode still decodes
+- GIVEN a scene whose arrow binding carries only `elementId` and omits `fixedPoint` and `mode`
+- WHEN the scene is decoded
+- THEN the binding SHALL take default `fixedPoint` and `mode` values and the remaining elements SHALL decode rather than the whole scene failing (src: Tests/ExcalidrawModelTests/SceneDecodeDiagTests.swift:12)
 
 ### Requirement: Lossless preservation of unmodelled data
 The system SHALL preserve arbitrary unmodelled JSON via a `customData` field and an `AppState` key-value bag, using a `JSONValue` enum (null/bool/number/string/array/object), so unknown data round-trips without loss (src: Sources/ExcalidrawModel/ValueTypes.swift:78).

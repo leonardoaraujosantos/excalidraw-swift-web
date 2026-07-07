@@ -40,11 +40,11 @@ public struct FixedPointBinding: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey { case elementId, fixedPoint, mode }
 
-    // Tolerant decode: real-world bindings (an agent-authored connector, or
-    // upstream Excalidraw's focus/gap binding) often carry only `elementId` and
-    // omit `fixedPoint`/`mode`. Those keys default here so one such binding can't
-    // make the whole `[ExcalidrawElement]` decode throw — which would otherwise
-    // blank the entire board on a strict (Swift) client.
+    /// Tolerant decode: real-world bindings (an agent-authored connector, or
+    /// upstream Excalidraw's focus/gap binding) often carry only `elementId` and
+    /// omit `fixedPoint`/`mode`. Those keys default here so one such binding can't
+    /// make the whole `[ExcalidrawElement]` decode throw — which would otherwise
+    /// blank the entire board on a strict (Swift) client.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         elementId = try c.decodeIfPresent(String.self, forKey: .elementId) ?? ""
