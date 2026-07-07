@@ -1,6 +1,7 @@
 package com.excalidraw.android
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
@@ -17,6 +18,9 @@ enum class Tool(val label: String) {
     DIAMOND("Diamond"),
     DRAW("Draw"),
 }
+
+/** A remote collaborator's cursor: display name, CSS color, and scene position (null until they move). */
+data class RemoteCursor(val name: String, val colorHex: String, val scene: Offset?)
 
 /**
  * App-layer bridge between the pure [Editor] state machine and Compose. Camera
@@ -40,6 +44,14 @@ class SceneState {
 
     /** Set by [CollabSession] while connected: broadcast a batch of changed elements. */
     var onLocalChange: ((List<JsonObject>) -> Unit)? = null
+
+    /** Set by [CollabSession] while connected: broadcast this peer's cursor (scene coords). */
+    var onLocalPointer: ((Offset) -> Unit)? = null
+
+    /** Remote peers' live cursors, keyed by peerId (observable for the canvas overlay). */
+    val remoteCursors = mutableStateMapOf<String, RemoteCursor>()
+
+    fun broadcastPointer(scenePoint: Offset) { onLocalPointer?.invoke(scenePoint) }
 
     private fun bump() { revision++ }
 

@@ -32,7 +32,11 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import com.excalidraw.editor.Handle
 import com.excalidraw.model.ElementFactory
@@ -87,6 +91,7 @@ fun CanvasScreen(scene: SceneState) {
                                         }
                                     },
                                     onDrag = { change, dragAmount ->
+                                        scene.broadcastPointer(scene.toScene(change.position))
                                         when (mode) {
                                             MOVE -> {
                                                 val sp = scene.toScene(change.position)
@@ -107,7 +112,10 @@ fun CanvasScreen(scene: SceneState) {
                             }
                             Tool.DRAW -> detectDragGestures(
                                 onDragStart = { freehand = listOf(scene.toScene(it)) },
-                                onDrag = { change, _ -> freehand = freehand + scene.toScene(change.position) },
+                                onDrag = { change, _ ->
+                                    freehand = freehand + scene.toScene(change.position)
+                                    scene.broadcastPointer(scene.toScene(change.position))
+                                },
                                 onDragEnd = {
                                     if (freehand.size >= 2) {
                                         scene.add(
@@ -122,7 +130,10 @@ fun CanvasScreen(scene: SceneState) {
                             )
                             else -> detectDragGestures(
                                 onDragStart = { dragStart = scene.toScene(it); dragCurrent = dragStart },
-                                onDrag = { change, _ -> dragCurrent = scene.toScene(change.position) },
+                                onDrag = { change, _ ->
+                                    dragCurrent = scene.toScene(change.position)
+                                    scene.broadcastPointer(scene.toScene(change.position))
+                                },
                                 onDragEnd = {
                                     val a = dragStart; val b = dragCurrent
                                     if (a != null && b != null) commitShape(scene, a, b)
@@ -176,6 +187,22 @@ fun CanvasScreen(scene: SceneState) {
                             drawLine(Color(0xFF1971C2), freehand[i - 1], freehand[i], strokeWidth = 3f)
                         }
                     }
+                }
+
+                // Remote collaborator cursors — screen space, constant size.
+                scene.remoteCursors.values.forEach { c ->
+                    val sc = c.scene ?: return@forEach
+                    val screen = scene.sceneToScreen(sc.x.toDouble(), sc.y.toDouble())
+                    val color = ColorUtil.parse(c.colorHex, Color(0xFF868E96))
+                    drawCircle(color, 7f, screen)
+                    drawCircle(Color.White, 3f, screen)
+                    val label = textMeasurer.measure(
+                        c.name,
+                        TextStyle(color = Color.White, fontSize = TextUnit(11f, TextUnitType.Sp)),
+                    )
+                    val boxTopLeft = Offset(screen.x + 10f, screen.y + 6f)
+                    drawRect(color, boxTopLeft, Size(label.size.width + 12f, label.size.height + 6f))
+                    drawText(label, topLeft = Offset(boxTopLeft.x + 6f, boxTopLeft.y + 3f))
                 }
             }
         }
