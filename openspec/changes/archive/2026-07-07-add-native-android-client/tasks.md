@@ -75,5 +75,5 @@
 
 ## 10. Validation & archive
 
-- [ ] 10.1 Run `openspec validate add-native-android-client --strict` and confirm all parity/interop tests are green
+- [x] 10.1 Run `openspec validate add-native-android-client --strict` and confirm all parity/interop tests are green
 - [ ] 10.2 Archive the change (`/opsx:archive`) so `android-client` becomes a living baseline spec
