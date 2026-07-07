@@ -2,9 +2,9 @@ package com.excalidraw.android
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,22 +26,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import com.excalidraw.editor.Handle
 import com.excalidraw.model.ElementFactory
 import com.excalidraw.model.ElementView
 import kotlin.math.abs
 import kotlin.math.min
+
+private const val SELECT = "select"
+private const val MOVE = "move"
+private const val PAN = "pan"
+private const val RESIZE = "resize"
 
 @Composable
 fun CanvasScreen(scene: SceneState) {
     val textMeasurer = rememberTextMeasurer()
     val renderer = remember(textMeasurer) { SceneRenderer(textMeasurer) }
 
-    // Live preview of the shape/stroke being drawn, in scene coordinates.
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCurrent by remember { mutableStateOf<Offset?>(null) }
     var freehand by remember { mutableStateOf<List<Offset>>(emptyList()) }
@@ -53,10 +59,48 @@ fun CanvasScreen(scene: SceneState) {
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(scene.tool) {
+                        // Tap-to-select (a tap has no drag, so detectDragGestures never sees it).
+                        if (scene.tool == Tool.SELECT) {
+                            detectTapGestures(onTap = { pos -> scene.selectAtScene(scene.toScene(pos)) })
+                        }
+                    }
+                    .pointerInput(scene.tool) {
                         when (scene.tool) {
-                            Tool.SELECT -> detectTransformGestures { _, pan, zoom, _ ->
-                                scene.scale = (scene.scale * zoom).coerceIn(0.1f, 10f)
-                                scene.offset += pan
+                            Tool.SELECT -> {
+                                var mode = PAN
+                                var handle: Handle? = null
+                                var originScene = Offset.Zero
+                                detectDragGestures(
+                                    onDragStart = { pos ->
+                                        val sp = scene.toScene(pos)
+                                        originScene = sp
+                                        val h = scene.handleAt(pos, 44f)
+                                        when {
+                                            h != null -> { mode = RESIZE; handle = h; scene.beginTransform() }
+                                            scene.hitId(sp) != null -> {
+                                                scene.selectAtScene(sp); mode = MOVE; scene.beginTransform()
+                                            }
+                                            else -> { scene.clearSelection(); mode = PAN }
+                                        }
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        when (mode) {
+                                            MOVE -> {
+                                                val sp = scene.toScene(change.position)
+                                                scene.translateSelection((sp.x - originScene.x).toDouble(), (sp.y - originScene.y).toDouble())
+                                            }
+                                            RESIZE -> {
+                                                val sp = scene.toScene(change.position)
+                                                handle?.let { scene.resizeSelection(it, (sp.x - originScene.x).toDouble(), (sp.y - originScene.y).toDouble()) }
+                                            }
+                                            else -> scene.offset += dragAmount
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        if (mode == MOVE || mode == RESIZE) scene.endTransform()
+                                        mode = PAN; handle = null
+                                    },
+                                )
                             }
                             Tool.DRAW -> detectDragGestures(
                                 onDragStart = { freehand = listOf(scene.toScene(it)) },
@@ -66,8 +110,7 @@ fun CanvasScreen(scene: SceneState) {
                                         scene.add(
                                             ElementFactory.freedraw(
                                                 freehand.map { it.x.toDouble() to it.y.toDouble() },
-                                                strokeColor = "#1971c2",
-                                                strokeWidth = 3.0,
+                                                strokeColor = "#1971c2", strokeWidth = 3.0,
                                             ),
                                         )
                                     }
@@ -78,36 +121,50 @@ fun CanvasScreen(scene: SceneState) {
                                 onDragStart = { dragStart = scene.toScene(it); dragCurrent = dragStart },
                                 onDrag = { change, _ -> dragCurrent = scene.toScene(change.position) },
                                 onDragEnd = {
-                                    val a = dragStart
-                                    val b = dragCurrent
+                                    val a = dragStart; val b = dragCurrent
                                     if (a != null && b != null) commitShape(scene, a, b)
-                                    dragStart = null
-                                    dragCurrent = null
+                                    dragStart = null; dragCurrent = null
                                 },
                             )
                         }
                     },
             ) {
+                val rev = scene.revision // subscribe to editor mutations
                 withTransform({
                     translate(scene.offset.x, scene.offset.y)
                     scale(scene.scale, scene.scale, pivot = Offset.Zero)
                 }) {
-                    scene.elements.forEach { renderer.draw(this, ElementView(it)) }
+                    scene.editor.elements.forEach { renderer.draw(this, ElementView(it)) }
+
+                    // Selection overlay: dashed bounds + corner handles.
+                    scene.selectionBounds()?.let { b ->
+                        val dash = Stroke(1.5f / scene.scale, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f / scene.scale, 4f / scene.scale)))
+                        drawRect(
+                            Color(0xFF6965DB),
+                            Offset(b.minX.toFloat(), b.minY.toFloat()),
+                            Size(b.width.toFloat(), b.height.toFloat()),
+                            style = dash,
+                        )
+                        val hs = 5f / scene.scale
+                        listOf(
+                            Offset(b.minX.toFloat(), b.minY.toFloat()),
+                            Offset(b.maxX.toFloat(), b.minY.toFloat()),
+                            Offset(b.minX.toFloat(), b.maxY.toFloat()),
+                            Offset(b.maxX.toFloat(), b.maxY.toFloat()),
+                        ).forEach { c ->
+                            drawRect(Color.White, Offset(c.x - hs, c.y - hs), Size(hs * 2, hs * 2))
+                            drawRect(Color(0xFF6965DB), Offset(c.x - hs, c.y - hs), Size(hs * 2, hs * 2), style = Stroke(1.5f / scene.scale))
+                        }
+                    }
 
                     // In-progress previews.
-                    val a = dragStart
-                    val b = dragCurrent
-                    if (a != null && b != null) {
-                        val left = min(a.x, b.x)
-                        val top = min(a.y, b.y)
+                    val a = dragStart; val b = dragCurrent
+                    if (a != null && b != null && scene.tool != Tool.SELECT) {
+                        val left = min(a.x, b.x); val top = min(a.y, b.y)
                         val size = Size(abs(b.x - a.x), abs(b.y - a.y))
                         val preview = Color(0xFF6965DB)
                         when (scene.tool) {
                             Tool.ELLIPSE -> drawOval(preview, Offset(left, top), size, style = Stroke(2f))
-                            Tool.DIAMOND -> {
-                                // preview as bounds box
-                                drawRect(preview.copy(alpha = 0.5f), Offset(left, top), size, style = Stroke(2f))
-                            }
                             else -> drawRect(preview, Offset(left, top), size, style = Stroke(2f))
                         }
                     }
@@ -123,10 +180,8 @@ fun CanvasScreen(scene: SceneState) {
 }
 
 private fun commitShape(scene: SceneState, a: Offset, b: Offset) {
-    val x = min(a.x, b.x).toDouble()
-    val y = min(a.y, b.y).toDouble()
-    val w = abs(b.x - a.x).toDouble()
-    val h = abs(b.y - a.y).toDouble()
+    val x = min(a.x, b.x).toDouble(); val y = min(a.y, b.y).toDouble()
+    val w = abs(b.x - a.x).toDouble(); val h = abs(b.y - a.y).toDouble()
     if (w < 2 && h < 2) return
     val element = when (scene.tool) {
         Tool.ELLIPSE -> ElementFactory.ellipse(x, y, w, h, backgroundColor = "#b2f2bb")
@@ -138,6 +193,7 @@ private fun commitShape(scene: SceneState, a: Offset, b: Offset) {
 
 @Composable
 private fun Toolbar(scene: SceneState) {
+    val rev = scene.revision // resubscribe so undo/redo/delete enablement updates
     Row(
         Modifier
             .fillMaxWidth()
@@ -148,18 +204,30 @@ private fun Toolbar(scene: SceneState) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Tool.entries.forEach { tool ->
-            val selected = scene.tool == tool
-            Button(
-                onClick = { scene.tool = tool },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selected) Color(0xFF6965DB) else Color(0xFFE0E0E0),
-                    contentColor = if (selected) Color.White else Color.Black,
-                ),
-            ) { Text(tool.label, maxLines = 1, softWrap = false) }
+            ToolButton(tool.label, selected = scene.tool == tool) { scene.tool = tool }
         }
-        Button(
-            onClick = { scene.offset = Offset.Zero; scene.scale = 1f },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0E0E0), contentColor = Color.Black),
-        ) { Text("Reset", maxLines = 1, softWrap = false) }
+        ToolButton("Undo", enabled = scene.editor.canUndo) { scene.undo() }
+        ToolButton("Redo", enabled = scene.editor.canRedo) { scene.redo() }
+        ToolButton("Delete", enabled = scene.hasSelection) { scene.deleteSelection() }
+        ToolButton("+") { scene.zoomBy(1.2f) }
+        ToolButton("−") { scene.zoomBy(1f / 1.2f) }
+        ToolButton("Reset") { scene.resetCamera() }
     }
+}
+
+@Composable
+private fun ToolButton(
+    label: String,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) Color(0xFF6965DB) else Color(0xFFE0E0E0),
+            contentColor = if (selected) Color.White else Color.Black,
+        ),
+    ) { Text(label, maxLines = 1, softWrap = false) }
 }

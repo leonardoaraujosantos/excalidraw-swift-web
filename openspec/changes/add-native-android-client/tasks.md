@@ -38,11 +38,11 @@
 
 ## 5. Editor state machine (parity: drawing-tools, selection-and-transform, editing-history)
 
-- [ ] 5.1 Implement `editor` as a Compose-free state machine (no UI-framework coupling); assert via unit tests
+- [x] 5.1 Implement `editor` as a Compose-free state machine (no UI-framework coupling); assert via unit tests
 - [ ] 5.2 Implement all drawing tools to match `drawing-tools`
-- [ ] 5.3 Implement selection + transform to match `selection-and-transform`
-- [ ] 5.4 Implement undo/redo history to match `editing-history`
-- [ ] 5.5 Unit tests: create → select → transform → undo/redo produce the shared-spec element models
+- [x] 5.3 Implement selection + transform to match `selection-and-transform`
+- [x] 5.4 Implement undo/redo history to match `editing-history`
+- [x] 5.5 Unit tests: create → select → transform → undo/redo produce the shared-spec element models
 
 ## 6. Compose app host & input
 

@@ -3,8 +3,10 @@ package com.excalidraw.android
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.geometry.Offset
+import com.excalidraw.editor.Box
+import com.excalidraw.editor.Editor
+import com.excalidraw.editor.Handle
 import com.excalidraw.model.ExcalidrawFile
 import kotlinx.serialization.json.JsonObject
 
@@ -17,45 +19,92 @@ enum class Tool(val label: String) {
 }
 
 /**
- * Holds the editable scene plus camera and active tool. Backed by Compose
- * snapshot state so the canvas recomposes on edits. This is the app-layer view
- * of the model; the pure editor state machine (`editor` module) is a later
- * milestone per the design.
+ * App-layer bridge between the pure [Editor] state machine and Compose. Camera
+ * and active tool live here; the element list, selection, and history live in
+ * [editor]. A [revision] counter is bumped on every editor mutation so the
+ * Compose canvas recomposes (the editor itself holds no Compose types).
  */
 class SceneState {
-    val elements = mutableListOf<JsonObject>().toMutableStateList()
+    val editor = Editor()
 
     var tool by mutableStateOf(Tool.SELECT)
     var offset by mutableStateOf(Offset.Zero)
     var scale by mutableStateOf(1f)
 
-    var appState: JsonObject = JsonObject(emptyMap())
+    /** Read this in composables that render editor state so they resubscribe. */
+    var revision by mutableStateOf(0)
         private set
-    var files: JsonObject = JsonObject(emptyMap())
-        private set
+
+    private var appState: JsonObject = JsonObject(emptyMap())
+    private var files: JsonObject = JsonObject(emptyMap())
+
+    private fun bump() { revision++ }
 
     fun load(file: ExcalidrawFile) {
-        elements.clear()
-        elements.addAll(file.elements)
+        editor.load(file.elements)
         appState = file.appState
         files = file.files
+        bump()
     }
 
-    fun add(element: JsonObject) {
-        elements.add(element)
-    }
-
-    fun clear() {
-        elements.clear()
-    }
-
-    /** Rebuild a `.excalidraw` document from the current scene (for export). */
     fun toFile(): ExcalidrawFile =
-        ExcalidrawFile(elements = elements.toList(), appState = appState, files = files)
+        ExcalidrawFile(elements = editor.elements, appState = appState, files = files)
 
-    /** Screen point → scene point given the current camera. */
-    fun toScene(screen: Offset): Offset = Offset(
-        (screen.x - offset.x) / scale,
-        (screen.y - offset.y) / scale,
-    )
+    // --- Camera ---
+
+    fun toScene(screen: Offset): Offset =
+        Offset((screen.x - offset.x) / scale, (screen.y - offset.y) / scale)
+
+    fun sceneToScreen(x: Double, y: Double): Offset =
+        Offset((x.toFloat() * scale) + offset.x, (y.toFloat() * scale) + offset.y)
+
+    fun zoomBy(factor: Float) { scale = (scale * factor).coerceIn(0.1f, 10f) }
+
+    fun resetCamera() { offset = Offset.Zero; scale = 1f }
+
+    // --- Editing (each bumps revision) ---
+
+    fun add(obj: JsonObject) { editor.add(obj); bump() }
+
+    fun hitId(scene: Offset): String? =
+        editor.let {
+            // read-only hit-test without mutating selection
+            it.elements.lastOrNull { e ->
+                val v = com.excalidraw.model.ElementView(e)
+                !v.isDeleted && com.excalidraw.editor.ElementGeometry.hitTest(v, scene.x.toDouble(), scene.y.toDouble(), 8.0 / scale)
+            }?.let { e -> com.excalidraw.model.ElementView(e).id }
+        }
+
+    fun selectAtScene(scene: Offset) { editor.selectAt(scene.x.toDouble(), scene.y.toDouble(), 8.0 / scale); bump() }
+
+    fun clearSelection() { editor.clearSelection(); bump() }
+
+    fun beginTransform() { editor.beginTransform() }
+    fun translateSelection(dx: Double, dy: Double) { editor.translateSelection(dx, dy); bump() }
+    fun resizeSelection(handle: Handle, dx: Double, dy: Double) { editor.resizeSelection(handle, dx, dy); bump() }
+    fun endTransform() { editor.endTransform() }
+
+    fun deleteSelection() { editor.deleteSelection(); bump() }
+    fun undo() { if (editor.undo()) bump() }
+    fun redo() { if (editor.redo()) bump() }
+
+    val hasSelection: Boolean get() = editor.selection.isNotEmpty()
+
+    fun selectionBounds(): Box? = editor.selectionBounds()
+
+    /** Corner handle whose screen position is within [radiusPx] of the point, or null. */
+    fun handleAt(screen: Offset, radiusPx: Float): Handle? {
+        val b = selectionBounds() ?: return null
+        val corners = mapOf(
+            Handle.TOP_LEFT to sceneToScreen(b.minX, b.minY),
+            Handle.TOP_RIGHT to sceneToScreen(b.maxX, b.minY),
+            Handle.BOTTOM_LEFT to sceneToScreen(b.minX, b.maxY),
+            Handle.BOTTOM_RIGHT to sceneToScreen(b.maxX, b.maxY),
+        )
+        return corners.entries.firstOrNull { (_, pos) ->
+            val dx = pos.x - screen.x
+            val dy = pos.y - screen.y
+            dx * dx + dy * dy <= radiusPx * radiusPx
+        }?.key
+    }
 }
