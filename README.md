@@ -173,3 +173,18 @@ web/scripts/collab-live.sh   # requires xcodegen
 - **[docs/TYPESCRIPT_SVELTE_PORT.md](docs/TYPESCRIPT_SVELTE_PORT.md)** — the TypeScript + Svelte 5 twin roadmap (T0 → T7), delivered.
 - **[web/README.md](web/README.md)** — the web workspace: packages, status, and how to develop/test.
 - **[openspec/](openspec/)** — language-neutral OpenSpec baseline specs (15 capabilities, incl. `collaboration`) both implementations are built against.
+
+---
+
+## Contributing
+
+Contributions are welcome. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to
+build and test each client, the OpenSpec workflow, and PR expectations. Please
+also read the **[Code of Conduct](CODE_OF_CONDUCT.md)**. Found a security issue?
+See **[SECURITY.md](SECURITY.md)** — report it privately, not as a public issue.
+
+## License
+
+[MIT](LICENSE) © Cyberdyne Corp AI. This is an independent port inspired by and
+kept compatible with [Excalidraw](https://github.com/excalidraw/excalidraw); see
+[NOTICE](NOTICE) for attributions (Excalidraw, Rough.js, perfect-freehand).

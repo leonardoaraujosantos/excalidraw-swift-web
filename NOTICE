@@ -1,0 +1,29 @@
+excalidraw-native
+Copyright (c) 2026 Cyberdyne Corp AI
+
+This product is licensed under the MIT License (see LICENSE).
+
+--------------------------------------------------------------------------------
+Attributions
+--------------------------------------------------------------------------------
+
+This project is an independent, from-scratch set of native ports inspired by and
+kept behaviorally compatible with Excalidraw. It is not affiliated with or
+endorsed by the Excalidraw project. "Excalidraw" is the name of the upstream
+project by its respective authors.
+
+  Excalidraw — https://github.com/excalidraw/excalidraw
+  Licensed under the MIT License.
+
+The hand-drawn rendering re-implements the algorithms of the following libraries.
+The web client depends on the upstream npm packages directly; the Swift
+(RoughKit / FreehandKit) and Kotlin (rough-kotlin / freehand-kotlin) clients are
+independent re-ports validated for numeric/visual parity against them:
+
+  Rough.js — https://github.com/rough-stuff/rough
+  Copyright (c) 2019 Preet Shihn. Licensed under the MIT License.
+
+  perfect-freehand — https://github.com/steveruizok/perfect-freehand
+  Copyright (c) 2021 Stephen Ruiz Ltd. Licensed under the MIT License.
+
+All trademarks are the property of their respective owners.

@@ -66,7 +66,9 @@ The Yjs adapter is **optional and additive**: a parallel engine that bypasses `r
 
 ### Publishing (maintainers)
 
-Each package's `publishConfig.registry` points at `https://npm.pkg.github.com`. Authenticate with a GitHub token that has **`write:packages`** for the `CyberdyneCorp` org (the repo's `~/.npmrc` already routes `@cyberdynecorp` there via `${NPM_GITHUB_TOKEN}`):
+Releases publish automatically: push a version tag (e.g. `git tag 0.6.0 && git push origin 0.6.0`) and [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) builds, gates on a green test run + a tag/version match, and publishes to GitHub Packages using the built-in `GITHUB_TOKEN` (`permissions: packages: write`) — no PAT required, since the repo lives in the `CyberdyneCorp` org that owns the `@cyberdynecorp` scope.
+
+To publish manually, each package's `publishConfig.registry` points at `https://npm.pkg.github.com`; authenticate with a GitHub token that has **`write:packages`** for the `CyberdyneCorp` org (route `@cyberdynecorp` there in your `~/.npmrc`):
 
 ```sh
 pnpm build:libs              # tsc → dist (.js + .d.ts) for the library and the relay
