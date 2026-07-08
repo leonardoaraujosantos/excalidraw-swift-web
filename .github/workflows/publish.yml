@@ -1,17 +1,20 @@
 name: Publish web packages
 
-# Publishes the web npm packages to GitHub Packages when a version tag is pushed
-# (e.g. `git tag 0.3.0 && git push origin 0.3.0`). The Swift package needs no
-# publish step — SwiftPM resolves the git tag directly.
+# Publishes the web npm packages on a version tag push (e.g.
+# `git tag 0.6.0 && git push origin 0.6.0`) to BOTH registries:
+#   1. GitHub Packages (npm.pkg.github.com) via the built-in GITHUB_TOKEN.
+#   2. Public npm (registry.npmjs.org) via the NPM_TOKEN secret — so anyone can
+#      `npm install @cyberdynecorp/...` with no auth.
+# The Swift package needs no publish step — SwiftPM resolves the git tag directly.
 #
-# Auth: the packages are scoped @cyberdynecorp and this repo lives in the
-# CyberdyneCorp org, so the automatic GITHUB_TOKEN can publish them directly
-# (job `permissions: packages: write`). No PAT/secret needed.
+# NPM_TOKEN must be an npm **Automation** access token (classic) or a Granular
+# Access Token with "bypass 2FA" for the @cyberdynecorp org. If the secret is
+# absent/empty, the public-npm step is skipped (GitHub Packages still publishes).
 
 on:
   push:
     tags:
-      - "*.*.*" # e.g. 0.3.0
+      - "*.*.*" # e.g. 0.6.0
 
 jobs:
   publish:
@@ -27,6 +30,8 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10
+
+      # Build + gate once, authenticated to GitHub Packages first.
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -36,7 +41,6 @@ jobs:
           scope: "@cyberdynecorp"
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:libs
-      # Gate the release on a green build before anything is published.
       - run: pnpm typecheck
       - run: pnpm test
       - name: Verify the git tag matches the package versions
@@ -48,6 +52,26 @@ jobs:
               echo "::error::tag $tag does not match $pkg version $v"; exit 1
             fi
           done
-      - run: pnpm publish:libs
+
+      - name: Publish to GitHub Packages
+        run: pnpm publish:libs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Re-point the runner's npmrc at public npm for the second publish.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+          scope: "@cyberdynecorp"
+      - name: Publish to public npm
+        if: ${{ env.NPM_TOKEN != '' }}
+        run: pnpm publish:libs
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Note if public npm was skipped
+        if: ${{ env.NPM_TOKEN == '' }}
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: echo "::warning::NPM_TOKEN secret not set — skipped public npm publish (GitHub Packages published)."

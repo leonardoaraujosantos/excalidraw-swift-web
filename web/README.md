@@ -23,9 +23,18 @@ web/
 └── server/        @cyberdynecorp/excalidraw-relay — Node WebSocket relay              ✅ T7
 ```
 
-## Install (GitHub Packages)
+## Install
 
-The library ships as **one package, `@cyberdynecorp/excalidraw-svelte`** (every layer is a subpath export), plus the Node relay `@cyberdynecorp/excalidraw-relay`. Both publish to **GitHub Packages** under the `@cyberdynecorp` org (ESM-only). Consumers point the scope at GitHub Packages and authenticate with a GitHub token that has `read:packages`, via `.npmrc`:
+The library ships as **one package, `@cyberdynecorp/excalidraw-svelte`** (every layer is a subpath export), plus the Node relay `@cyberdynecorp/excalidraw-relay` (ESM-only). Releases are published to **both** public npm and GitHub Packages.
+
+**From public npm (recommended — no auth):**
+
+```sh
+npm install @cyberdynecorp/excalidraw-svelte    # the whole library — math · model · geometry · render · editor · protocol · svelte
+npm install @cyberdynecorp/excalidraw-relay      # Node WebSocket relay (server only)
+```
+
+**From GitHub Packages (alternative):** point the scope at GitHub Packages and authenticate with a GitHub token that has `read:packages`, via `.npmrc`, then run the same `npm install`:
 
 ```ini
 # .npmrc
@@ -33,12 +42,7 @@ The library ships as **one package, `@cyberdynecorp/excalidraw-svelte`** (every 
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-Then install the library (and the relay only if you run a server), and import any layer from its subpath:
-
-```sh
-npm install @cyberdynecorp/excalidraw-svelte    # the whole library — math · model · geometry · render · editor · protocol · svelte
-npm install @cyberdynecorp/excalidraw-relay      # Node WebSocket relay (server only)
-```
+Then import any layer from its subpath:
 
 ```ts
 import { EditorStore, browserSocket, reconnectingSocket } from "@cyberdynecorp/excalidraw-svelte";
@@ -66,13 +70,16 @@ The Yjs adapter is **optional and additive**: a parallel engine that bypasses `r
 
 ### Publishing (maintainers)
 
-Releases publish automatically: push a version tag (e.g. `git tag 0.6.0 && git push origin 0.6.0`) and [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) builds, gates on a green test run + a tag/version match, and publishes to GitHub Packages using the built-in `GITHUB_TOKEN` (`permissions: packages: write`) — no PAT required, since the repo lives in the `CyberdyneCorp` org that owns the `@cyberdynecorp` scope.
+Releases publish automatically: push a version tag (e.g. `git tag 0.6.0 && git push origin 0.6.0`) and [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) builds, gates on a green test run + a tag/version match, and publishes to **both**:
 
-To publish manually, each package's `publishConfig.registry` points at `https://npm.pkg.github.com`; authenticate with a GitHub token that has **`write:packages`** for the `CyberdyneCorp` org (route `@cyberdynecorp` there in your `~/.npmrc`):
+1. **GitHub Packages** — via the built-in `GITHUB_TOKEN` (`permissions: packages: write`); no PAT, since the repo is in the `CyberdyneCorp` org that owns the `@cyberdynecorp` scope.
+2. **Public npm** — via the `NPM_TOKEN` repo secret (an npm **Automation** token, or a Granular token with *bypass 2FA*, for the `@cyberdynecorp` org). If the secret is absent, the public-npm step is skipped and only GitHub Packages publishes.
+
+Packages set `publishConfig.access = public` (no pinned registry), so each publish step targets whichever registry its `.npmrc` points at.
 
 ```sh
 pnpm build:libs              # tsc → dist (.js + .d.ts) for the library and the relay
-pnpm publish:libs            # rewrites workspace:* → versions, publishes both to GitHub Packages
+pnpm publish:libs            # rewrites workspace:* → versions, publishes to the configured registry
 ```
 
 Versions live in each package's `package.json` (currently `0.6.0`); the `excalidraw-svelte`, `excalidraw-yjs`, and `excalidraw-relay` (server) packages are released together at the same version. A version tag push (e.g. `0.5.3`) publishes them automatically via `.github/workflows/publish.yml`, which asserts the tag matches all three package versions.
