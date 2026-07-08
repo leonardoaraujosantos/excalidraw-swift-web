@@ -1,6 +1,6 @@
 # @cyberdynecorp/excalidraw-svelte
 
-The web (TypeScript / Svelte 5) implementation of the [Excalidraw port](https://github.com/leonardoaraujosantos/excalidraw-swift-web) — the twin of the native Swift/SwiftUI port, sharing the same data model, `.excalidraw` v2 file format, and collaboration wire protocol.
+The web (TypeScript / Svelte 5) implementation of the [Excalidraw port](https://github.com/CyberdyneCorp/excalidraw-native) — the twin of the native Swift/SwiftUI port, sharing the same data model, `.excalidraw` v2 file format, and collaboration wire protocol.
 
 A single package with **subpath exports** for each layer, so you install one dependency and import only what you use (tree-shakeable, `sideEffects: false`):
 
@@ -15,7 +15,7 @@ A single package with **subpath exports** for each layer, so you install one dep
 | `@cyberdynecorp/excalidraw-svelte/math` | Points, vectors, matrices, numeric primitives |
 | `@cyberdynecorp/excalidraw-svelte/protocol` | Collaboration wire format: messages, codec, reconciliation |
 
-The collaboration **relay server** ships separately as [`@cyberdynecorp/excalidraw-relay`](https://github.com/leonardoaraujosantos/excalidraw-swift-web/tree/main/web/server) (it's a Node WebSocket server, not a browser library).
+The collaboration **relay server** ships separately as [`@cyberdynecorp/excalidraw-relay`](https://github.com/CyberdyneCorp/excalidraw-native/tree/main/web/server) (it's a Node WebSocket server, not a browser library).
 
 ## Install (GitHub Packages)
 

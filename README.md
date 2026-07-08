@@ -66,7 +66,7 @@ In sync with the code; full detail in [docs/ROADMAP.md](docs/ROADMAP.md#known-ga
 ## Repository layout
 
 ```
-excalidraw-swift-web/
+excalidraw-native/
 ├── Sources/            Swift packages (the iOS/iPad implementation)
 │   ├── ExcalidrawMath · ExcalidrawModel · ExcalidrawGeometry
 │   ├── RoughKit · FreehandKit · ExcalidrawRender · ExcalidrawMetal
@@ -119,7 +119,7 @@ Both implementations are packaged for reuse in other projects.
 - **Swift (SwiftPM):** add the package and depend on the products you need.
 
   ```swift
-  .package(url: "https://github.com/leonardoaraujosantos/excalidraw-swift-web.git", from: "0.6.0")
+  .package(url: "https://github.com/CyberdyneCorp/excalidraw-native.git", from: "0.6.0")
   // products: ExcalidrawModel, ExcalidrawGeometry, ExcalidrawEditor,
   //           ExcalidrawCollab, ExcalidrawRender, ExcalidrawUI, RoughKit, FreehandKit, …
   ```

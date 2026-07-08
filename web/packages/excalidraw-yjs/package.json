@@ -30,10 +30,10 @@
   "author": "Cyberdyne Corp AI",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/leonardoaraujosantos/excalidraw-swift-web.git",
+    "url": "git+https://github.com/CyberdyneCorp/excalidraw-native.git",
     "directory": "web/packages/excalidraw-yjs"
   },
-  "homepage": "https://github.com/leonardoaraujosantos/excalidraw-swift-web#readme",
+  "homepage": "https://github.com/CyberdyneCorp/excalidraw-native#readme",
   "files": ["dist", "README.md"],
   "sideEffects": false,
   "publishConfig": {

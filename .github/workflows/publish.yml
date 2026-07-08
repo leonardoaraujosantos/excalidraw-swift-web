@@ -4,10 +4,9 @@ name: Publish web packages
 # (e.g. `git tag 0.3.0 && git push origin 0.3.0`). The Swift package needs no
 # publish step — SwiftPM resolves the git tag directly.
 #
-# Auth: the packages are scoped @cyberdynecorp (the CyberdyneCorp org), but this
-# repo is under a personal account, so the automatic GITHUB_TOKEN cannot publish
-# them. Add a repo secret CYBERDYNE_NPM_TOKEN = a PAT with `write:packages` for
-# the CyberdyneCorp org (the same token used to publish manually).
+# Auth: the packages are scoped @cyberdynecorp and this repo lives in the
+# CyberdyneCorp org, so the automatic GITHUB_TOKEN can publish them directly
+# (job `permissions: packages: write`). No PAT/secret needed.
 
 on:
   push:
@@ -17,6 +16,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     defaults:
       run:
         working-directory: web
@@ -48,4 +50,4 @@ jobs:
           done
       - run: pnpm publish:libs
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.CYBERDYNE_NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

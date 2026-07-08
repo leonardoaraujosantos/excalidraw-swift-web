@@ -1,6 +1,6 @@
 # @cyberdynecorp/excalidraw-yjs
 
-An **optional Yjs/CRDT collaboration adapter** for [`@cyberdynecorp/excalidraw-svelte`](https://github.com/leonardoaraujosantos/excalidraw-swift-web/tree/main/web/packages/excalidraw-svelte). It two-way binds an `EditorStore` to a Yjs `Y.Doc`, so you can collaborate over the **entire Yjs provider ecosystem** (y-websocket, Hocuspocus, Liveblocks, PartyKit, y-webrtc, or a custom gateway) and get **field-level merge** for concurrent edits to the same element.
+An **optional Yjs/CRDT collaboration adapter** for [`@cyberdynecorp/excalidraw-svelte`](https://github.com/CyberdyneCorp/excalidraw-native/tree/main/web/packages/excalidraw-svelte). It two-way binds an `EditorStore` to a Yjs `Y.Doc`, so you can collaborate over the **entire Yjs provider ecosystem** (y-websocket, Hocuspocus, Liveblocks, PartyKit, y-webrtc, or a custom gateway) and get **field-level merge** for concurrent edits to the same element.
 
 > The canonical engine stays the built-in **element-LWW** (`version`/`versionNonce` + `reconcileElements`) shared byte-identically with the Swift twin. This adapter is **additive and optional** — a *parallel* engine that bypasses `reconcileElements` (Yjs does the merging). The core library takes **no** `yjs` dependency.
 
