@@ -18,8 +18,9 @@ async function joinYjs(page: Page, room: string, name: string): Promise<void> {
  * the browser — a serialized page function can't close over outer variables). */
 function waitForType(page: Page, type: string): Promise<unknown> {
   return page.waitForFunction((t) => {
-    const store = (window as unknown as { __store?: { scene: { visibleElements: { type: string }[] } } })
-      .__store;
+    const store = (
+      window as unknown as { __store?: { scene: { visibleElements: { type: string }[] } } }
+    ).__store;
     return store?.scene.visibleElements.some((e) => e.type === t) ?? false;
   }, type);
 }
@@ -51,7 +52,8 @@ test("two browsers in one Yjs room converge — CRDT, no relay", async ({ browse
   await bob.reload();
   await ready(bob);
   await bob.waitForFunction(() => {
-    const store = (window as unknown as { __store?: { scene: { visibleElements: unknown[] } } }).__store;
+    const store = (window as unknown as { __store?: { scene: { visibleElements: unknown[] } } })
+      .__store;
     return (store?.scene.visibleElements.length ?? 0) === 2;
   });
 
@@ -74,8 +76,14 @@ test("remote cursors propagate via Yjs awareness", async ({ browser }) => {
 
   // Bob sees Alice's presence (with a cursor) and an overlay cursor for her.
   await bob.waitForFunction(() => {
-    const collab = (window as unknown as { __yjs?: { collab: { remotePresences(): { peer: { name: string }; pointer: unknown }[] } } }).__yjs?.collab;
-    return (collab?.remotePresences() ?? []).some((p) => p.peer.name === "Alice" && p.pointer !== null);
+    const collab = (
+      window as unknown as {
+        __yjs?: { collab: { remotePresences(): { peer: { name: string }; pointer: unknown }[] } };
+      }
+    ).__yjs?.collab;
+    return (collab?.remotePresences() ?? []).some(
+      (p) => p.peer.name === "Alice" && p.pointer !== null,
+    );
   });
   await bob.waitForFunction(() => {
     const store = (window as unknown as { __store?: { externalCursors: unknown[] } }).__store;
@@ -104,7 +112,8 @@ test("a Yjs-synced scene round-trips .excalidraw into the LWW/solo editor", asyn
   await solo.goto("/");
   await ready(solo);
   await solo.evaluate(
-    (j) => (window as unknown as { __store: { loadDocument(s: string): void } }).__store.loadDocument(j),
+    (j) =>
+      (window as unknown as { __store: { loadDocument(s: string): void } }).__store.loadDocument(j),
     json,
   );
   const soloTypes = await read(solo, (s) => s.scene.visibleElements.map((e) => e.type).sort());

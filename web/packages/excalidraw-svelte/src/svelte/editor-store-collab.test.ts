@@ -167,3 +167,42 @@ describe("EditorStore collaboration", () => {
     expect(store.scene.element("seed")).toBeDefined();
   });
 });
+
+describe("interop: labels, theme, and binding hovers over the relay", () => {
+  function drawRect(store: EditorStore): void {
+    store.selectTool("rectangle");
+    store.pointer("down", new Point(100, 100));
+    store.pointer("move", new Point(300, 200));
+    store.pointer("up", new Point(300, 200));
+    store.selectTool("selection");
+  }
+
+  it("creating a double-click label broadcasts container and text as plain elements", () => {
+    const { store, socket } = connectedStore();
+    drawRect(store);
+    store.doubleClickAt(new Point(200, 150));
+    store.setEditingText("Hello");
+    store.commitText();
+
+    const last = socket.updates().at(-1)!;
+    const text = last.elements.find((e) => e.type === "text");
+    const container = last.elements.find((e) => e.type === "rectangle");
+    expect(text).toBeDefined();
+    expect(container).toBeDefined();
+    expect(text?.containerId).toBe(container?.id);
+    expect(container?.boundElements).toEqual([{ id: text?.id, type: "text" }]);
+  });
+
+  it("theme toggling and suggested-binding hovers broadcast no element updates", () => {
+    const { store, socket } = connectedStore();
+    drawRect(store);
+    const sentBefore = socket.updates().length;
+
+    store.toggleTheme();
+    store.selectTool("arrow");
+    store.trackPointer(new Point(200, 150)); // suggests the rectangle
+    store.trackPointer(new Point(2000, 2000)); // clears the suggestion
+
+    expect(socket.updates().length).toBe(sentBefore);
+  });
+});

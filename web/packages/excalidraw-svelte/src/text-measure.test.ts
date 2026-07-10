@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FontFamily } from "./model/enums.js";
-import { fontFamilyCss, fontString, measureTextWidth } from "./text-measure.js";
+import { fontFamilyCss, fontString, measureTextWidth, wrapTextLines } from "./text-measure.js";
 
 describe("text-measure", () => {
   it("maps font families to the right CSS stacks (parity with iOS fallbacks)", () => {
@@ -28,5 +28,23 @@ describe("text-measure", () => {
       6,
     );
     expect(measureTextWidth("", 20, FontFamily.default)).toBe(0);
+  });
+});
+
+describe("wrapTextLines", () => {
+  // Non-DOM heuristic: width = chars × fontSize × 0.6 → 12px/char at size 20.
+  it("wraps words to the max width and breaks over-long words by character", () => {
+    const lines = wrapTextLines("aa bb cc", 20, 5, 60); // 5 chars max per line
+    expect(lines).toEqual(["aa bb", "cc"]);
+
+    const broken = wrapTextLines("abcdefghij", 20, 5, 48); // 4 chars per line
+    expect(broken).toEqual(["abcd", "efgh", "ij"]);
+    expect(broken.every((l) => l.length * 12 <= 48)).toBe(true);
+  });
+
+  it("honours explicit newlines and never drops characters", () => {
+    const lines = wrapTextLines("one two\nthree", 20, 5, 1000);
+    expect(lines).toEqual(["one two", "three"]);
+    expect(wrapTextLines("", 20, 5, 100)).toEqual([""]);
   });
 });

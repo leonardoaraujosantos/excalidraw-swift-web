@@ -36,6 +36,7 @@ export {
 export {
   distanceToElement,
   hit,
+  isPointInElementBounds,
   isPointInside,
   isPointOnOutline,
   shouldTestInside,

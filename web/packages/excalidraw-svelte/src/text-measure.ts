@@ -60,3 +60,53 @@ export function measureTextWidth(text: string, fontSize: number, fontFamily: num
   ctx.font = fontString(fontSize, fontFamily);
   return lines.reduce((m, l) => Math.max(m, ctx.measureText(l).width), 0);
 }
+
+/**
+ * Word-wrap `text` to `maxWidth` (per rendered line, honouring explicit
+ * newlines), breaking words that alone exceed the width by character —
+ * excalidraw's container-label wrapping. Returns the wrapped lines.
+ */
+export function wrapTextLines(
+  text: string,
+  fontSize: number,
+  fontFamily: number,
+  maxWidth: number,
+): string[] {
+  const width = (s: string) => measureTextWidth(s, fontSize, fontFamily);
+  const lines: string[] = [];
+  for (const raw of text.split("\n")) {
+    if (maxWidth <= 0 || width(raw) <= maxWidth) {
+      lines.push(raw);
+      continue;
+    }
+    let current = "";
+    for (const word of raw.split(" ")) {
+      const candidate = current === "" ? word : `${current} ${word}`;
+      if (width(candidate) <= maxWidth) {
+        current = candidate;
+        continue;
+      }
+      if (current !== "") {
+        lines.push(current);
+        current = "";
+      }
+      if (width(word) <= maxWidth) {
+        current = word;
+        continue;
+      }
+      // The word alone is too wide: break it by character.
+      let piece = "";
+      for (const ch of word) {
+        if (piece !== "" && width(piece + ch) > maxWidth) {
+          lines.push(piece);
+          piece = ch;
+        } else {
+          piece += ch;
+        }
+      }
+      current = piece;
+    }
+    lines.push(current);
+  }
+  return lines;
+}

@@ -8,10 +8,13 @@ export const BINDING_DISTANCE = 16;
 
 export function isBindable(el: ExcalidrawElement): boolean {
   switch (el.type) {
+    case "text":
+      // A container's bound label is part of the container: arrows bind (and
+      // snap/highlight) to the shape, never to its label text.
+      return el.containerId === null;
     case "rectangle":
     case "diamond":
     case "ellipse":
-    case "text":
     case "image":
     case "frame":
     case "magicframe":

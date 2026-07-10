@@ -4,6 +4,7 @@ import type { RenderContext } from "./scene-renderer.js";
 import type { Viewport } from "./viewport.js";
 
 const ACCENT = "#6b82f5"; // Excalidraw violet
+const BINDING_HIGHLIGHT = "#68b1ec"; // suggested-binding ring (excalidraw blue)
 const ACCENT_FILL = "rgba(107,130,245,0.08)";
 const SNAP = "rgba(232,77,61,0.9)";
 const WHITE = "#ffffff";
@@ -35,6 +36,11 @@ export interface OverlayOptions {
   eraserDots?: TrailDot[];
   /** Remote collaborators' cursors (scene coords), drawn in each peer's colour. */
   remoteCursors?: { color: string; name: string; x: number; y: number }[];
+  /** Closed outline (scene coords) of the shape a linear endpoint would bind to. */
+  suggestedOutline?: Point[];
+  /** Anchor placeholders (side midpoints) where a click-to-connect arrow can
+   * start or stop on the suggested shape. */
+  suggestedAnchors?: Point[];
 }
 
 const TRAIL_FADE = 0.7;
@@ -95,6 +101,31 @@ export function renderOverlay(ctx: RenderContext, o: OverlayOptions): void {
 
   const lineWidth = 1 / v.zoom;
   const handleSize = (o.handleSizePx ?? 8) / v.zoom;
+
+  // Suggested-binding highlight: ring the shape a linear endpoint would bind
+  // to, under all other overlay chrome.
+  const suggested = o.suggestedOutline ?? [];
+  if (suggested.length > 1) {
+    ctx.strokeStyle = BINDING_HIGHLIGHT;
+    ctx.lineWidth = 4 / v.zoom;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(suggested[0]!.x, suggested[0]!.y);
+    for (let i = 1; i < suggested.length; i++) ctx.lineTo(suggested[i]!.x, suggested[i]!.y);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  // Anchor placeholders: where a click-to-connect arrow starts/stops.
+  for (const anchor of o.suggestedAnchors ?? []) {
+    ctx.beginPath();
+    ctx.arc(anchor.x, anchor.y, 5 / v.zoom, 0, TWO_PI);
+    ctx.fillStyle = WHITE;
+    ctx.fill();
+    ctx.strokeStyle = BINDING_HIGHLIGHT;
+    ctx.lineWidth = 2 / v.zoom;
+    ctx.setLineDash([]);
+    ctx.stroke();
+  }
   const snapLinesX = o.snapLinesX ?? [];
   const snapLinesY = o.snapLinesY ?? [];
 

@@ -82,7 +82,7 @@ pnpm build:libs              # tsc → dist (.js + .d.ts) for the library and th
 pnpm publish:libs            # rewrites workspace:* → versions, publishes to the configured registry
 ```
 
-Versions live in each package's `package.json` (currently `0.6.0`); the `excalidraw-svelte`, `excalidraw-yjs`, and `excalidraw-relay` (server) packages are released together at the same version. A version tag push (e.g. `0.5.3`) publishes them automatically via `.github/workflows/publish.yml`, which asserts the tag matches all three package versions.
+Versions live in each package's `package.json` (currently `0.7.0`); the `excalidraw-svelte`, `excalidraw-yjs`, and `excalidraw-relay` (server) packages are released together at the same version. A version tag push (e.g. `0.5.3`) publishes them automatically via `.github/workflows/publish.yml`, which asserts the tag matches all three package versions.
 
 ## Develop
 
@@ -352,3 +352,30 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     (bar ↔ line) and the **data** (CSV), rebuilding the chart in place at its
     origin. E2E: the cell editor matches the cell width, and a bar chart converts
     to a 5-point line chart.
+  - **Canvas interaction parity (Phase 1 of the excalidraw.com audit,
+    `web-canvas-interaction-parity`):** double-clicking a rectangle/diamond/
+    ellipse now creates (or edits) a **centred bound label** — the editor opens
+    with its caret centred in the shape (WYSIWYG with the committed label,
+    re-centring as lines are added) — double-clicking
+    empty canvas creates a **text element** in place, and double-clicking an
+    existing free text edits it instead of stacking a new one — a label
+    committed empty is removed whole (no orphaned `boundElements`). The arrow/
+    line tools show a **suggested-binding highlight** around the shape under
+    the cursor (hover and while dragging; ephemeral, never serialized or
+    broadcast), plus **click-to-connect**: hovering a shape shows four anchor
+    placeholders at its side midpoints; a click starts an arrow there
+    (anchor-snapped), the end follows the cursor as a live preview, and the
+    next click on the destination completes it bound on both ends — Escape or
+    a tool switch abandons it with no history. **Dark theme** now maps element colours at paint time
+    (arithmetic `invert(93%) hue-rotate(180deg)`, excalidraw-compatible) so
+    drawings stay legible, while the model and all exports keep canonical
+    light-theme colours. Tool shortcuts are inert while a text editor is open
+    (typing "Hello" no longer switches to the ellipse tool) and Escape commits
+    the editor. E2E covers all four behaviours plus interop guards (labels
+    sync over relay + Yjs as plain elements; theme/hover emit nothing). A follow-up
+    pass brought the chrome to excalidraw's layout — floating icon toolbar
+    island with number-shortcut badges (1–8 tools, 9 image, 0 eraser), hint
+    line, contextual left style panel, bottom-left zoom/undo islands — made the
+    **hand tool actually pan**, snapped click-to-connect endpoints landing
+    inside a shape to its nearest anchor, and fixed bindable-target detection
+    so arrows bind to a labelled shape itself, never its bound label text.

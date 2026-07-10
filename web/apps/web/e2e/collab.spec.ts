@@ -12,7 +12,8 @@ async function joinRoom(page: Page, port: number, room: string, name: string): P
   await page.goto(`/?relay=${encodeURIComponent(relayUrl)}&room=${room}&name=${name}`);
   await ready(page);
   await page.waitForFunction(() => {
-    const store = (window as unknown as { __store?: { collab: { you: string | null } | null } }).__store;
+    const store = (window as unknown as { __store?: { collab: { you: string | null } | null } })
+      .__store;
     return store?.collab?.you != null;
   });
 }
@@ -37,7 +38,9 @@ test("two browsers in one room converge on the same scene + presence", async ({ 
   await alice.getByTestId("tool-rectangle").click();
   await drag(alice, { x: 0.3, y: 0.3 }, { x: 0.5, y: 0.5 });
   await bob.waitForFunction(() => {
-    const store = (window as unknown as { __store?: { scene: { visibleElements: { type: string }[] } } }).__store;
+    const store = (
+      window as unknown as { __store?: { scene: { visibleElements: { type: string }[] } } }
+    ).__store;
     return store?.scene.visibleElements.some((e) => e.type === "rectangle") ?? false;
   });
 
@@ -45,7 +48,9 @@ test("two browsers in one room converge on the same scene + presence", async ({ 
   await bob.getByTestId("tool-ellipse").click();
   await drag(bob, { x: 0.55, y: 0.3 }, { x: 0.75, y: 0.5 });
   await alice.waitForFunction(() => {
-    const store = (window as unknown as { __store?: { scene: { visibleElements: { type: string }[] } } }).__store;
+    const store = (
+      window as unknown as { __store?: { scene: { visibleElements: { type: string }[] } } }
+    ).__store;
     return store?.scene.visibleElements.some((e) => e.type === "ellipse") ?? false;
   });
 

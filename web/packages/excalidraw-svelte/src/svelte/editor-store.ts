@@ -6,6 +6,7 @@ import {
   type Tool,
   pointerEvent,
 } from "../editor/index.js";
+import { unrotatedOutline } from "../geometry/index.js";
 import { Point } from "../math/index.js";
 import {
   type ExcalidrawElement,
@@ -70,6 +71,10 @@ export class EditorStore {
     viewW?: number;
     viewH?: number;
   } | null = null;
+  /** A label created by the current edit session (removed again if committed empty). */
+  private pendingLabelID: string | null = null;
+  /** Last pointer position (view coords) while the hand tool is dragging. */
+  private handPanLast: Point | null = null;
   /** Chart editing state (`null` when not editing): plot kind + CSV data. */
   editingChart: {
     group: string;
@@ -146,11 +151,34 @@ export class EditorStore {
   // MARK: Pointer input (view coordinates in)
 
   pointer(phase: PointerPhase, viewPoint: Point, opts: PointerOptions = {}): void {
+    // A press on the canvas while the on-canvas text editor is open commits
+    // the edit (like excalidraw) and is consumed — it must not draw, select,
+    // or spawn another editor. (The canvas pointerdown fires before the
+    // textarea's blur, so without this the text tool would open a second
+    // editor and drop the first text.)
+    if (this.editingText !== null) {
+      if (phase === "down") this.commitText();
+      return;
+    }
     // The text tool taps to place an on-canvas editor instead of dragging.
     if (this.activeTool === "text" && phase === "down") {
       this.beginText(viewPoint);
       return;
     }
+    // The hand tool grabs the canvas: drags pan the viewport and never reach
+    // the editor (parity with excalidraw's hand tool).
+    if (this.activeTool === "hand") {
+      if (phase === "down") {
+        this.handPanLast = viewPoint;
+      } else if (phase === "move" && this.handPanLast !== null) {
+        this.panZoom(viewPoint.x - this.handPanLast.x, viewPoint.y - this.handPanLast.y, 1);
+        this.handPanLast = viewPoint;
+      } else if (phase === "up") {
+        this.handPanLast = null;
+      }
+      return;
+    }
+
     const scenePoint = this.viewport.viewToScene(viewPoint);
     const now = opts.now ?? nowSeconds();
 
@@ -175,6 +203,9 @@ export class EditorStore {
     if (phase === "down") this.controller.pointerDown(event);
     else if (phase === "move") this.controller.pointerMove(event);
     else this.controller.pointerUp(event);
+    // Keep the suggested-binding highlight live while drawing a linear element
+    // or dragging a linear-edit endpoint; clear it when the drag ends.
+    this.controller.updateSuggestedBinding(phase === "up" ? null : scenePoint, true);
     this.bump();
 
     if (this.collab !== null) {
@@ -195,6 +226,18 @@ export class EditorStore {
     const p = this.viewport.viewToScene(viewPoint);
     for (const listener of this.cursorListeners) listener(p);
     if (this.collab !== null) this.collab.sendPointer({ x: p.x, y: p.y });
+    // Hovering with a linear tool suggests the bindable shape under the cursor,
+    // and a click-started (pending) arrow's end follows the cursor live.
+    const suggested = this.controller.updateSuggestedBinding(p);
+    const pending = this.controller.updatePendingLinear(p);
+    if (suggested || pending) this.bump();
+  }
+
+  /** Abandon a click-started arrow awaiting its destination (Escape). */
+  cancelPendingArrow(): boolean {
+    if (!this.controller.cancelPendingLinear()) return false;
+    this.bump();
+    return true;
   }
 
   // MARK: Viewport
@@ -493,9 +536,10 @@ export class EditorStore {
   }
 
   /**
-   * Double-click handler: edit a sticky-note label if one is hit, otherwise
-   * enter linear point ("spline") editing on a hit line/arrow so its vertices
-   * can be dragged and midpoints split.
+   * Double-click handler, in priority order: edit an existing bound label,
+   * edit a chart, enter linear point ("spline") editing on a line/arrow, edit
+   * a free text element, add a label to a hit container (created on the spot),
+   * or — on empty canvas — create a new text element and edit it.
    */
   doubleClickAt(viewPoint: Point): void {
     if (this.editBoundTextAt(viewPoint)) return;
@@ -505,7 +549,35 @@ export class EditorStore {
       this.beginChartEdit(chartGroup, viewPoint);
       return;
     }
-    if (this.controller.beginLinearEdit(scenePoint)) this.bump();
+    if (this.controller.beginLinearEdit(scenePoint)) {
+      this.bump();
+      return;
+    }
+    const freeText = this.controller.unboundTextHit(scenePoint);
+    if (freeText !== null) {
+      this.beginExistingTextEdit(freeText);
+      return;
+    }
+    const containerID = this.controller.labelContainerHit(scenePoint);
+    if (containerID !== null) {
+      const textID = this.controller.createBoundLabel(containerID);
+      if (textID !== null) {
+        this.pendingLabelID = textID;
+        this.beginBoundTextEdit(containerID, textID);
+        this.bump();
+        return;
+      }
+    }
+    this.beginText(viewPoint);
+  }
+
+  /** Open the on-canvas editor over an existing free text element. */
+  private beginExistingTextEdit(id: string): void {
+    const el = this.scene.element(id);
+    if (el === undefined || el.type !== "text") return;
+    const tl = this.viewport.sceneToView(new Point(el.x, el.y));
+    this.editingText = { id, value: el.text, viewX: tl.x, viewY: tl.y };
+    this.bump();
   }
 
   /** Whether a line/arrow is currently in point-editing mode (for the UI). */
@@ -666,12 +738,23 @@ export class EditorStore {
   }
 
   setEditingText(value: string): void {
-    if (this.editingText !== null) this.editingText = { ...this.editingText, value };
+    if (this.editingText === null) return;
+    this.editingText = { ...this.editingText, value };
+    this.bump(); // hosts derive editor chrome (e.g. centred padding) from the value
   }
 
   commitText(): void {
     if (this.editingText === null) return;
-    this.controller.setText(this.editingText.id, this.editingText.value);
+    const { id, value } = this.editingText;
+    // A label created by this edit session that stays empty is removed whole
+    // (text element + `boundElements` entry) instead of persisting as an
+    // invisible empty label.
+    if (value.length === 0 && id === this.pendingLabelID) {
+      this.controller.removeBoundLabel(id);
+    } else {
+      this.controller.setText(id, value);
+    }
+    this.pendingLabelID = null;
     this.editingText = null;
     this.controller.setTool("selection");
     this.bump();
@@ -710,6 +793,25 @@ export class EditorStore {
     });
   }
 
+  /** Closed outline (scene coords) of the current suggested-binding target. */
+  private suggestedOutline(): Point[] {
+    const id = this.controller.suggestedBindingID;
+    const el = id !== null ? this.scene.element(id) : undefined;
+    if (el === undefined) return [];
+    const cx = el.x + el.width / 2;
+    const cy = el.y + el.height / 2;
+    const center = new Point(cx, cy);
+    // unrotatedOutline boxes ellipses; approximate the true curve instead.
+    const base =
+      el.type === "ellipse"
+        ? Array.from({ length: 32 }, (_, i) => {
+            const t = (i / 32) * 2 * Math.PI;
+            return new Point(cx + (el.width / 2) * Math.cos(t), cy + (el.height / 2) * Math.sin(t));
+          })
+        : unrotatedOutline(el).points;
+    return el.angle === 0 ? base : base.map((p) => p.rotated(center, el.angle));
+  }
+
   /** Draw the interactive overlay (selection, handles, marquee, edit handles, trails). */
   renderOverlay(ctx: RenderContext, width: number, height: number, now = nowSeconds()): void {
     const c = this.controller;
@@ -736,6 +838,9 @@ export class EditorStore {
       viewport: this.viewport,
       width,
       height,
+      suggestedOutline: this.suggestedOutline(),
+      suggestedAnchors:
+        c.suggestedBindingID !== null ? c.anchorPointsFor(c.suggestedBindingID) : [],
       selectionBounds: c.selectionBounds,
       handles,
       rotationHandle,

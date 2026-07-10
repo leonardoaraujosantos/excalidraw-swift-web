@@ -139,6 +139,17 @@ describe("EditorStore", () => {
     expect(store.viewport.zoom).toBeCloseTo(1 / 1.2, 6);
   });
 
+  it("the hand tool pans the viewport and creates nothing", () => {
+    const store = new EditorStore();
+    store.selectTool("hand");
+    store.pointer("down", new Point(200, 200));
+    store.pointer("move", new Point(260, 240));
+    store.pointer("up", new Point(260, 240));
+    expect(store.viewport.scrollX).toBeCloseTo(60, 5);
+    expect(store.viewport.scrollY).toBeCloseTo(40, 5);
+    expect(store.scene.visibleElements).toHaveLength(0);
+  });
+
   it("theme toggles", () => {
     const store = new EditorStore();
     expect(store.theme).toBe("light");
@@ -337,5 +348,394 @@ describe("EditorStore", () => {
     const rect = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
     expect(rect.fillStyle).toBe("cross-hatch");
     expect(store.controller.currentItem.fillStyle).toBe("cross-hatch");
+  });
+});
+
+describe("sticky-note label fitting and font scaling", () => {
+  const LONG = "sddslasdlajsdlkajsdklajdlajsldjalsdjkalsdkajdlask";
+
+  function insertNoteWithText(store: EditorStore, text: string) {
+    store.insertStickyNote();
+    store.setEditingText(text);
+    store.commitText();
+    const note = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    const label = store.scene.visibleElements.find((e) => e.type === "text")!;
+    return { note, label };
+  }
+
+  it("a long label wraps to the note's width and the note grows to fit it", () => {
+    const store = new EditorStore();
+    const { note, label } = insertNoteWithText(store, LONG);
+    expect(label.text).toContain("\n"); // wrapped, not one overflowing line
+    expect(label.originalText).toBe(LONG); // raw input preserved
+    expect(label.width).toBeLessThanOrEqual(note.width - 16 + 1);
+    expect(label.height).toBeLessThanOrEqual(note.height - 16 + 1); // note grew to fit
+  });
+
+  it("resizing the note scales the label font and keeps the text fitting", () => {
+    const store = new EditorStore();
+    const { note, label } = insertNoteWithText(store, "Idea!");
+    const fontBefore = label.fontSize;
+
+    // Grab the note's bottom-right handle and drag it outward.
+    store.selectTool("selection");
+    store.pointer("down", new Point(note.x + note.width / 2, note.y + note.height / 2));
+    store.pointer("up", new Point(note.x + note.width / 2, note.y + note.height / 2));
+    const corner = new Point(note.x + note.width, note.y + note.height);
+    store.pointer("down", corner);
+    store.pointer("move", new Point(corner.x + 160, corner.y + 160));
+    store.pointer("up", new Point(corner.x + 160, corner.y + 160));
+
+    const grown = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    const scaled = store.scene.visibleElements.find((e) => e.type === "text")!;
+    expect(grown.width).toBeGreaterThan(note.width + 100);
+    expect(scaled.fontSize).toBeGreaterThan(fontBefore * 1.5);
+    expect(scaled.width).toBeLessThanOrEqual(grown.width - 16 + 1);
+
+    // And shrinking scales it back down.
+    const corner2 = new Point(grown.x + grown.width, grown.y + grown.height);
+    store.pointer("down", corner2);
+    store.pointer("move", new Point(corner2.x - 200, corner2.y - 200));
+    store.pointer("up", new Point(corner2.x - 200, corner2.y - 200));
+    const shrunk = store.scene.visibleElements.find((e) => e.type === "text")!;
+    expect(shrunk.fontSize).toBeLessThan(scaled.fontSize);
+  });
+});
+
+describe("double-click labels and canvas text", () => {
+  /** Draw a rectangle from (100,100) to (300,200) with the rectangle tool. */
+  function drawRect(store: EditorStore) {
+    store.selectTool("rectangle");
+    store.pointer("down", new Point(100, 100));
+    store.pointer("move", new Point(300, 200));
+    store.pointer("up", new Point(300, 200));
+    store.selectTool("selection");
+    return store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+  }
+  const center = (r: { x: number; y: number; width: number; height: number }) =>
+    new Point(r.x + r.width / 2, r.y + r.height / 2);
+
+  it("double-clicking a plain shape creates and edits a centred bound label", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.doubleClickAt(center(rect));
+    expect(store.editingText).not.toBeNull();
+    expect(store.editingText?.value).toBe("");
+
+    store.setEditingText("Hello");
+    store.commitText();
+
+    const text = store.scene.visibleElements.find((e) => e.type === "text")!;
+    expect(text.text).toBe("Hello");
+    const container = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    expect(text.containerId).toBe(container.id);
+    expect(container.boundElements).toEqual([{ id: text.id, type: "text" }]);
+    // Stored position is centred in the container (cross-client fidelity).
+    expect(text.x + text.width / 2).toBeCloseTo(container.x + container.width / 2, 0);
+    expect(text.y + text.height / 2).toBeCloseTo(container.y + container.height / 2, 0);
+  });
+
+  it("double-clicking a labelled shape edits the existing label", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.doubleClickAt(center(rect));
+    store.setEditingText("Hello");
+    store.commitText();
+
+    store.doubleClickAt(center(rect));
+    expect(store.editingText?.value).toBe("Hello");
+    store.setEditingText("World");
+    store.commitText();
+
+    const texts = store.scene.visibleElements.filter((e) => e.type === "text");
+    expect(texts).toHaveLength(1);
+    expect(texts[0]!.text).toBe("World");
+  });
+
+  it("committing an empty new label leaves no orphan", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.doubleClickAt(center(rect));
+    store.commitText(); // nothing typed
+
+    expect(store.scene.visibleElements.some((e) => e.type === "text")).toBe(false);
+    const container = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    expect(container.boundElements ?? []).toHaveLength(0);
+  });
+
+  it("a typed label is one undo step (create + text fold together)", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.doubleClickAt(center(rect));
+    store.setEditingText("Hello");
+    store.commitText();
+    expect(store.scene.visibleElements.some((e) => e.type === "text")).toBe(true);
+
+    store.undo();
+    expect(store.scene.visibleElements.some((e) => e.type === "text")).toBe(false);
+    const container = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    expect(container.boundElements ?? []).toHaveLength(0);
+  });
+
+  it("the label hit rule covers a transparent shape's interior", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store); // default background is transparent
+    expect(store.controller.labelContainerHit(center(rect))).toBe(rect.id);
+  });
+
+  it("text-tool text commits when clicking outside the editor", () => {
+    const store = new EditorStore();
+    store.selectTool("text");
+    store.pointer("down", new Point(400, 300));
+    expect(store.editingText).not.toBeNull();
+    store.setEditingText("Hi");
+
+    // A press elsewhere commits the edit and is consumed (no draw/select/editor).
+    store.pointer("down", new Point(700, 500));
+    store.pointer("up", new Point(700, 500));
+    expect(store.editingText).toBeNull();
+    const texts = store.scene.visibleElements.filter((e) => e.type === "text");
+    expect(texts).toHaveLength(1);
+    expect(texts[0]!.text).toBe("Hi");
+    expect(store.activeTool).toBe("selection");
+  });
+
+  it("a label editor commits when clicking outside it", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.doubleClickAt(center(rect));
+    store.setEditingText("Hello");
+    store.pointer("down", new Point(700, 500));
+    expect(store.editingText).toBeNull();
+    const label = store.scene.visibleElements.find((e) => e.type === "text")!;
+    expect(label.text).toBe("Hello");
+    expect(label.containerId).toBe(rect.id);
+  });
+
+  it("double-clicking empty canvas creates a text element in place", () => {
+    const store = new EditorStore();
+    store.selectTool("selection");
+    store.doubleClickAt(new Point(400, 300));
+    expect(store.editingText).not.toBeNull();
+
+    store.setEditingText("Quick text");
+    store.commitText();
+    const text = store.scene.visibleElements.find((e) => e.type === "text")!;
+    expect(text.text).toBe("Quick text");
+    expect(text.containerId).toBeNull();
+  });
+
+  it("double-clicking existing free text edits it instead of stacking a new one", () => {
+    const store = new EditorStore();
+    store.selectTool("selection");
+    store.doubleClickAt(new Point(400, 300));
+    store.setEditingText("First");
+    store.commitText();
+
+    const text = store.scene.visibleElements.find((e) => e.type === "text")!;
+    store.doubleClickAt(new Point(text.x + text.width / 2, text.y + text.height / 2));
+    expect(store.editingText?.id).toBe(text.id);
+    expect(store.editingText?.value).toBe("First");
+    store.commitText();
+    expect(store.scene.visibleElements.filter((e) => e.type === "text")).toHaveLength(1);
+  });
+
+  it("suggested binding highlights on arrow-tool hover and clears away", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.selectTool("arrow");
+
+    store.trackPointer(center(rect));
+    expect(store.controller.suggestedBindingID).toBe(rect.id);
+
+    store.trackPointer(new Point(2000, 2000));
+    expect(store.controller.suggestedBindingID).toBeNull();
+  });
+
+  it("suggested binding tracks the endpoint while drawing an arrow and clears on release", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.selectTool("arrow");
+
+    store.pointer("down", new Point(500, 150));
+    store.pointer("move", center(rect));
+    expect(store.controller.suggestedBindingID).toBe(rect.id);
+
+    store.pointer("up", center(rect));
+    expect(store.controller.suggestedBindingID).toBeNull();
+    // The released endpoint actually bound (existing behaviour, sanity check).
+    const arrow = store.scene.visibleElements.find((e) => e.type === "arrow")!;
+    expect(arrow.endBinding?.elementId).toBe(rect.id);
+  });
+
+  it("non-linear tools never suggest a binding", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.selectTool("selection");
+    store.trackPointer(center(rect));
+    expect(store.controller.suggestedBindingID).toBeNull();
+
+    store.selectTool("rectangle");
+    store.trackPointer(center(rect));
+    expect(store.controller.suggestedBindingID).toBeNull();
+  });
+
+  it("labels serialize with schema-v2 fields only and round-trip the document", () => {
+    const store = new EditorStore();
+    const rect = drawRect(store);
+    store.doubleClickAt(center(rect));
+    store.setEditingText("Hello");
+    store.commitText();
+
+    const json = store.documentJSON();
+    const doc = JSON.parse(json) as {
+      elements: {
+        type: string;
+        id: string;
+        containerId?: string | null;
+        boundElements?: unknown;
+      }[];
+    };
+    const text = doc.elements.find((e) => e.type === "text")!;
+    const container = doc.elements.find((e) => e.type === "rectangle")!;
+    expect(text.containerId).toBe(container.id);
+    expect(container.boundElements).toEqual([{ id: text.id, type: "text" }]);
+
+    const restored = new EditorStore();
+    restored.loadDocument(json);
+    const rText = restored.scene.visibleElements.find((e) => e.type === "text")!;
+    expect(rText.text).toBe("Hello");
+    expect(rText.containerId).toBe(container.id);
+  });
+
+  it("click-to-connect: click a source shape, hover, click the destination", () => {
+    const store = new EditorStore();
+    const a = drawRect(store); // (100,100)-(300,200)
+    store.selectTool("rectangle");
+    store.pointer("down", new Point(500, 100));
+    store.pointer("move", new Point(700, 200));
+    store.pointer("up", new Point(700, 200));
+    store.selectTool("arrow");
+
+    // Click (no drag) on shape A's right-edge anchor region starts the arrow.
+    const start = new Point(a.x + a.width, a.y + a.height / 2);
+    store.pointer("down", start);
+    store.pointer("up", start);
+    expect(store.controller.pendingLinearID).not.toBeNull();
+
+    // The preview end follows the hovering cursor.
+    store.trackPointer(new Point(450, 150));
+    const preview = store.scene.visibleElements.find((e) => e.type === "arrow")!;
+    expect(preview.width).toBeGreaterThan(100);
+
+    // Clicking the destination completes the arrow, bound on both ends.
+    store.pointer("down", new Point(600, 150));
+    store.pointer("up", new Point(600, 150));
+    expect(store.controller.pendingLinearID).toBeNull();
+    const arrow = store.scene.visibleElements.find((e) => e.type === "arrow")!;
+    expect(arrow.startBinding).not.toBeNull();
+    expect(arrow.endBinding).not.toBeNull();
+    expect(store.activeTool).toBe("selection");
+  });
+
+  it("click-to-connect snaps the source to the nearest anchor placeholder", () => {
+    const store = new EditorStore();
+    const a = drawRect(store);
+    store.selectTool("arrow");
+    // Click slightly off the right-edge midpoint: within the anchor radius.
+    const anchor = new Point(a.x + a.width, a.y + a.height / 2);
+    store.pointer("down", new Point(anchor.x - 6, anchor.y + 6));
+    store.pointer("up", new Point(anchor.x - 6, anchor.y + 6));
+    const arrow = store.scene.visibleElements.find((e) => e.type === "arrow")!;
+    expect(arrow.x).toBeCloseTo(anchor.x, 5);
+    expect(arrow.y).toBeCloseTo(anchor.y, 5);
+    store.cancelPendingArrow();
+  });
+
+  it("a destination click inside a shape lands on its nearest anchor", () => {
+    const store = new EditorStore();
+    const a = drawRect(store); // (100,100)-(300,200)
+    store.selectTool("arrow");
+    store.pointer("down", new Point(500, 150)); // click-start on empty canvas
+    store.pointer("up", new Point(500, 150));
+    // Click well inside the shape: the end snaps to the nearest anchor (right
+    // edge midpoint), so the arrow never terminates mid-shape.
+    store.pointer("down", new Point(a.x + a.width - 30, a.y + a.height / 2));
+    store.pointer("up", new Point(a.x + a.width - 30, a.y + a.height / 2));
+    const arrow = store.scene.visibleElements.find((e) => e.type === "arrow")!;
+    const end = arrow.points[arrow.points.length - 1]!;
+    expect(arrow.x + end[0]).toBeCloseTo(a.x + a.width, 5);
+    expect(arrow.y + end[1]).toBeCloseTo(a.y + a.height / 2, 5);
+    expect(arrow.endBinding).not.toBeNull();
+  });
+
+  it("labelled shapes bind as the shape — never the label text (regression)", () => {
+    const store = new EditorStore();
+    const a = drawRect(store); // (100,100)-(300,200)
+    store.doubleClickAt(center(a));
+    store.setEditingText("Edvane"); // label covers the centre
+    store.commitText();
+
+    // Hover suggests the rectangle, not the smaller label under the cursor.
+    store.selectTool("arrow");
+    store.trackPointer(center(a));
+    expect(store.controller.suggestedBindingID).toBe(a.id);
+
+    // Click-to-connect into the labelled centre binds and snaps to the shape.
+    store.pointer("down", new Point(500, 150));
+    store.pointer("up", new Point(500, 150));
+    store.pointer("down", center(a));
+    store.pointer("up", center(a));
+    const arrow = store.scene.visibleElements.find((e) => e.type === "arrow")!;
+    expect(arrow.endBinding?.elementId).toBe(a.id);
+    const end = arrow.points[arrow.points.length - 1]!;
+    const anchors = store.controller.anchorPointsFor(a.id);
+    const endPoint = new Point(arrow.x + end[0], arrow.y + end[1]);
+    expect(anchors.some((p) => p.distance(endPoint) < 1)).toBe(true);
+  });
+
+  it("a pending arrow cancels on Escape or tool switch with no history", () => {
+    const store = new EditorStore();
+    drawRect(store);
+    store.selectTool("arrow");
+    store.pointer("down", new Point(500, 400));
+    store.pointer("up", new Point(500, 400));
+    expect(store.controller.pendingLinearID).not.toBeNull();
+    expect(store.cancelPendingArrow()).toBe(true);
+    expect(store.scene.visibleElements.some((e) => e.type === "arrow")).toBe(false);
+    expect(store.cancelPendingArrow()).toBe(false); // nothing pending anymore
+
+    // Tool switch also abandons a fresh pending arrow.
+    store.selectTool("arrow");
+    store.pointer("down", new Point(500, 400));
+    store.pointer("up", new Point(500, 400));
+    store.selectTool("selection");
+    expect(store.scene.visibleElements.some((e) => e.type === "arrow")).toBe(false);
+    // History: only the rectangle draw is undoable; undoing it empties the scene.
+    store.undo();
+    expect(store.scene.visibleElements).toHaveLength(0);
+    expect(store.canUndo).toBe(false);
+  });
+
+  it("exposes four anchor placeholders at the side midpoints", () => {
+    const store = new EditorStore();
+    const a = drawRect(store);
+    const anchors = store.controller.anchorPointsFor(a.id);
+    expect(anchors).toHaveLength(4);
+    const xs = anchors.map((p) => Math.round(p.x)).sort((m, n) => m - n);
+    const cx = Math.round(a.x + a.width / 2);
+    expect(xs).toEqual([Math.round(a.x), cx, cx, Math.round(a.x + a.width)].sort((m, n) => m - n));
+  });
+
+  it("double-click priorities still route charts, lines, and bound text first", () => {
+    const store = new EditorStore();
+    // A chart double-click opens the chart editor, not a label editor.
+    store.insertChart([10, 20], "bar");
+    const bar = store.scene.visibleElements.find((e) => e.type === "rectangle")!;
+    store.selectTool("selection");
+    store.doubleClickAt(new Point(bar.x + bar.width / 2, bar.y + bar.height / 2));
+    expect(store.editingChart).not.toBeNull();
+    expect(store.editingText).toBeNull();
+    store.cancelChart();
   });
 });
