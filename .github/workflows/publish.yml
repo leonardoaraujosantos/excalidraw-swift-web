@@ -2,19 +2,29 @@ name: Publish web packages
 
 # Publishes the web npm packages on a version tag push (e.g.
 # `git tag 0.6.0 && git push origin 0.6.0`) to BOTH registries:
-#   1. GitHub Packages (npm.pkg.github.com) via the built-in GITHUB_TOKEN.
-#   2. Public npm (registry.npmjs.org) via the NPM_TOKEN secret — so anyone can
-#      `npm install @cyberdynecorp/...` with no auth.
+#   1. Public npm (registry.npmjs.org) via the NPM_TOKEN secret — the primary
+#      registry, so anyone can `npm install @cyberdynecorp/...` with no auth.
+#   2. GitHub Packages (npm.pkg.github.com) via the built-in GITHUB_TOKEN.
+# The two publishes are independent: a failure on GitHub Packages (typically a
+# package↔repository linkage/ACL problem, fixable only in the package's UI
+# settings) must never block the public-npm release, so it runs second with
+# continue-on-error and surfaces a warning instead.
 # The Swift package needs no publish step — SwiftPM resolves the git tag directly.
 #
 # NPM_TOKEN must be an npm **Automation** access token (classic) or a Granular
 # Access Token with "bypass 2FA" for the @cyberdynecorp org. If the secret is
 # absent/empty, the public-npm step is skipped (GitHub Packages still publishes).
+#
+# To re-run a failed publish for an existing tag, dispatch this workflow with
+# the tag as the ref: `gh workflow run publish.yml --ref <tag>`. Already-
+# published versions on either registry make that registry's step fail (npm
+# rejects republish), which is safe: the other registry still publishes.
 
 on:
   push:
     tags:
       - "*.*.*" # e.g. 0.6.0
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -31,13 +41,13 @@ jobs:
         with:
           version: 10
 
-      # Build + gate once, authenticated to GitHub Packages first.
+      # Build + gate once, authenticated to public npm first.
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
-          registry-url: "https://npm.pkg.github.com"
+          registry-url: "https://registry.npmjs.org"
           scope: "@cyberdynecorp"
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:libs
@@ -53,17 +63,6 @@ jobs:
             fi
           done
 
-      - name: Publish to GitHub Packages
-        run: pnpm publish:libs
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Re-point the runner's npmrc at public npm for the second publish.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: "https://registry.npmjs.org"
-          scope: "@cyberdynecorp"
       - name: Publish to public npm
         if: ${{ env.NPM_TOKEN != '' }}
         run: pnpm publish:libs
@@ -74,4 +73,22 @@ jobs:
         if: ${{ env.NPM_TOKEN == '' }}
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: echo "::warning::NPM_TOKEN secret not set — skipped public npm publish (GitHub Packages published)."
+        run: echo "::warning::NPM_TOKEN secret not set — skipped public npm publish."
+
+      # Re-point the runner's npmrc at GitHub Packages for the second publish.
+      # Non-blocking: see the header comment.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@cyberdynecorp"
+      - name: Publish to GitHub Packages
+        id: ghp
+        continue-on-error: true
+        run: pnpm publish:libs
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Note if GitHub Packages failed
+        if: ${{ steps.ghp.outcome == 'failure' }}
+        run: |
+          echo "::warning::GitHub Packages publish failed (public npm unaffected). If it's a 403 write_package, re-link the packages to this repository and grant Actions access in each package's settings: https://github.com/orgs/CyberdyneCorp/packages"
