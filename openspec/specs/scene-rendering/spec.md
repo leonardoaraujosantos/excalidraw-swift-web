@@ -3,9 +3,7 @@
 ## Purpose
 
 The default Core Graphics renderer that turns a scene into pixels behind the `SceneRendering` protocol. It draws every element kind, text, images, and frames, paints an interactive overlay (selection, handles, marquee, snap guides, editing discs, crop), and uses layered caching of shapes and the static scene for smooth interaction during edits.
-
 ## Requirements
-
 ### Requirement: SceneRendering protocol
 The system SHALL define a `SceneRendering` protocol whose Core Graphics backend draws into a y-down context, where `render()` accepts a `skipping` set of element ids (to avoid double-drawing in the layered split) and a `fillBackground` flag (src: Sources/ExcalidrawRender/SceneRendering.swift:9).
 
@@ -169,3 +167,31 @@ The system SHALL cache the Drawable per element id and regenerate it when the el
 - GIVEN a cached static scene
 - WHEN the viewport, theme, scene, or size changes
 - THEN the cache token SHALL be invalidated and the static scene re-rasterized (src: Sources/ExcalidrawRender/StaticLayerCache.swift:13)
+
+### Requirement: Dark-theme element color mapping
+
+When the dark theme is active, the renderer SHALL map element stroke and background colors so content stays legible on the dark canvas background (excalidraw-compatible inversion: dark inks render light, light fills render dark, hues preserved), while the scene model SHALL keep the canonical (light-theme) color values. Exports (SVG, PNG, `.excalidraw` JSON) SHALL use the canonical colors unless a dark export is explicitly requested. The mapping SHALL apply to all painted element parts — strokes, fills, freedraw outlines, text, and arrowheads — and SHALL NOT alter bitmap image content.
+
+#### Scenario: Default ink is visible in dark theme
+- **WHEN** an element drawn with the default near-black stroke is rendered in
+  dark theme
+- **THEN** its painted stroke SHALL be a light color clearly visible against
+  the dark background (not near-black on near-black)
+
+#### Scenario: Model and exports keep canonical colors
+- **WHEN** the theme is toggled to dark and the scene is exported
+- **THEN** element `strokeColor`/`backgroundColor` values in the scene and in
+  the export SHALL be unchanged from their light-theme values
+
+#### Scenario: Round-trip with excalidraw.com is unaffected
+- **WHEN** a document authored in dark theme is saved and reopened on
+  excalidraw.com
+- **THEN** the elements SHALL show the same canonical colors excalidraw.com
+  would show for that file in the corresponding theme
+
+#### Scenario: Collaborators are unaffected by a peer's theme
+- **WHEN** a user in dark theme edits a shared scene while a collaborator uses
+  light theme (relay or Yjs session)
+- **THEN** the collaborator SHALL receive only canonical element colors — the
+  theme SHALL NOT be broadcast and SHALL NOT alter any synced element field
+

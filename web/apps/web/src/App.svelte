@@ -1,264 +1,325 @@
 <script lang="ts">
-  import type { Tool } from "@cyberdynecorp/excalidraw-svelte/editor";
-  import type { FillStyle } from "@cyberdynecorp/excalidraw-svelte/model";
-  import { EditorStore, browserSocket, reconnectingSocket } from "@cyberdynecorp/excalidraw-svelte";
-  import { YjsCollab, type AwarenessLike } from "@cyberdynecorp/excalidraw-yjs";
-  import { Awareness } from "y-protocols/awareness";
-  import * as Y from "yjs";
-  import Canvas from "./lib/Canvas.svelte";
-  import { BroadcastChannelProvider } from "./lib/yjs-broadcast-provider";
+import { EditorStore, browserSocket, reconnectingSocket } from "@cyberdynecorp/excalidraw-svelte";
+import type { Tool } from "@cyberdynecorp/excalidraw-svelte/editor";
+import type { FillStyle } from "@cyberdynecorp/excalidraw-svelte/model";
+import { type AwarenessLike, YjsCollab } from "@cyberdynecorp/excalidraw-yjs";
+import { Awareness } from "y-protocols/awareness";
+import * as Y from "yjs";
+import Canvas from "./lib/Canvas.svelte";
+import { BroadcastChannelProvider } from "./lib/yjs-broadcast-provider";
 
-  const store = new EditorStore();
-  // Expose the store for end-to-end tests to assert against the scene.
-  (window as unknown as { __store?: EditorStore }).__store = store;
+const store = new EditorStore();
+// Expose the store for end-to-end tests to assert against the scene.
+(window as unknown as { __store?: EditorStore }).__store = store;
 
-  // Auto-join a collaboration room from the URL: ?relay=ws://…&room=…&name=…
-  const params = new URLSearchParams(location.search);
-  const relayUrl = params.get("relay");
-  const roomName = params.get("room");
-  if (relayUrl !== null && roomName !== null) {
-    const palette = ["#e64980", "#4263eb", "#0ca678", "#f08c00", "#ae3ec9"];
-    const peer = {
-      id: `web-${Math.random().toString(36).slice(2, 8)}`,
-      name: params.get("name") ?? "Guest",
-      color: palette[Math.floor(Math.random() * palette.length)]!,
-    };
-    store.startCollab(reconnectingSocket(() => browserSocket(relayUrl)), peer, roomName);
-  }
-
-  // Or join a Yjs/CRDT room from the URL: ?yjs=<room> (same-origin BroadcastChannel
-  // provider; the adapter itself works with any provider). Exposed for E2E tests.
-  const yjsRoom = params.get("yjs");
-  if (yjsRoom !== null) {
-    const palette = ["#e64980", "#4263eb", "#0ca678", "#f08c00", "#ae3ec9"];
-    const peer = {
-      id: `web-${Math.random().toString(36).slice(2, 8)}`,
-      name: params.get("name") ?? "Guest",
-      color: palette[Math.floor(Math.random() * palette.length)]!,
-    };
-    const ydoc = new Y.Doc();
-    const awareness = new Awareness(ydoc);
-    const provider = new BroadcastChannelProvider(ydoc, yjsRoom, awareness);
-    const collab = new YjsCollab(store, ydoc, {
-      awareness: awareness as unknown as AwarenessLike,
-      peer,
-    });
-    collab.start();
-    (window as unknown as { __yjs?: unknown }).__yjs = { doc: ydoc, collab, provider, awareness };
-  }
-  // The store is plain TS, so its reads aren't reactive on their own. Poll the
-  // revision counter and expose store-derived UI state through `view`, which
-  // re-derives whenever `rev` changes (fine-grained reactivity in runes mode).
-  let rev = $state(0);
-  $effect(() => {
-    const id = setInterval(() => {
-      rev = store.revision;
-    }, 40);
-    return () => clearInterval(id);
-  });
-  const view = $derived.by(() => {
-    void rev;
-    return {
-      tool: store.activeTool,
-      canUndo: store.canUndo,
-      canRedo: store.canRedo,
-      zoom: store.zoomPercent,
-      theme: store.theme,
-      stats: store.selectionStats,
-      editing: store.editingText,
-      table: store.selectedTableGroup,
-      chart: store.editingChart,
-      peers: store.collab === null ? [] : [...store.collab.peers.values()],
-      selectedCount: store.selectedCount,
-      canGroup: store.canGroupSelection,
-      canUngroup: store.canUngroupSelection,
-    };
-  });
-
-  // Right-click context menu over the canvas (scene coords not needed: it acts
-  // on the current selection). `null` when hidden.
-  let menu = $state<{ x: number; y: number } | null>(null);
-  function openMenu(e: MouseEvent): void {
-    e.preventDefault();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    menu = { x: e.clientX - r.left, y: e.clientY - r.top };
-  }
-  function closeMenu(): void {
-    menu = null;
-  }
-  function runMenu(action: () => void): void {
-    action();
-    closeMenu();
-  }
-
-  const tools: { tool: Tool; label: string }[] = [
-    { tool: "selection", label: "▢ Select" },
-    { tool: "rectangle", label: "▭ Rect" },
-    { tool: "diamond", label: "◇ Diamond" },
-    { tool: "ellipse", label: "◯ Ellipse" },
-    { tool: "arrow", label: "→ Arrow" },
-    { tool: "line", label: "／ Line" },
-    { tool: "freedraw", label: "✎ Draw" },
-    { tool: "text", label: "T Text" },
-    { tool: "frame", label: "⛶ Frame" },
-    { tool: "laser", label: "⦿ Laser" },
-    { tool: "eraser", label: "⌫ Erase" },
-    { tool: "hand", label: "✋ Hand" },
-  ];
-
-  let fileInput: HTMLInputElement;
-
-  function importImage(e: Event): void {
-    const file = (e.currentTarget as HTMLInputElement).files?.[0];
-    if (file === undefined) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataURL = reader.result as string;
-      const img = new Image();
-      img.onload = () => store.insertImage(dataURL, file.type, img.naturalWidth, img.naturalHeight);
-      img.src = dataURL;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  let strokeColor = $state("#1e1e1e");
-  let backgroundColor = $state("transparent");
-  let strokeWidth = $state(2);
-  let elbowed = $state(false);
-  let fillStyle = $state<FillStyle>("hachure");
-
-  function pick(tool: Tool): void {
-    store.selectTool(tool);
-  }
-
-  function downloadSvg(): void {
-    const blob = new Blob([store.exportSvg()], { type: "image/svg+xml" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "drawing.svg";
-    a.click();
-  }
-
-  function downloadJson(): void {
-    const blob = new Blob([store.documentJSON()], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "drawing.excalidraw";
-    a.click();
-  }
-
-  const mermaidSample = "flowchart TD\n  A[Start] --> B{OK?}\n  B -->|Yes| C[Ship]\n  B -->|No| D[Fix]";
-
-  const toolKeys: Record<string, Tool> = {
-    v: "selection",
-    r: "rectangle",
-    d: "diamond",
-    o: "ellipse",
-    a: "arrow",
-    l: "line",
-    p: "freedraw",
-    t: "text",
-    e: "eraser",
-    h: "hand",
-    f: "frame",
+// Auto-join a collaboration room from the URL: ?relay=ws://…&room=…&name=…
+const params = new URLSearchParams(location.search);
+const relayUrl = params.get("relay");
+const roomName = params.get("room");
+if (relayUrl !== null && roomName !== null) {
+  const palette = ["#e64980", "#4263eb", "#0ca678", "#f08c00", "#ae3ec9"];
+  const peer = {
+    id: `web-${Math.random().toString(36).slice(2, 8)}`,
+    name: params.get("name") ?? "Guest",
+    color: palette[Math.floor(Math.random() * palette.length)]!,
   };
+  store.startCollab(
+    reconnectingSocket(() => browserSocket(relayUrl)),
+    peer,
+    roomName,
+  );
+}
 
-  function onKeydown(e: KeyboardEvent): void {
-    if (e.key === "Escape" && menu !== null) {
-      closeMenu();
-      return;
-    }
-    if (store.editingText !== null) return;
-    const target = e.target as HTMLElement | null;
-    if (target !== null && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-    const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key.toLowerCase() === "z") {
-      e.preventDefault();
-      if (e.shiftKey) store.redo();
-      else store.undo();
-      return;
-    }
-    if (mod && e.key.toLowerCase() === "d") {
-      e.preventDefault();
-      store.duplicate();
-      return;
-    }
-    if (mod && e.key.toLowerCase() === "a") {
-      e.preventDefault();
-      store.selectAll();
-      return;
-    }
-    if (e.key === "Backspace" || e.key === "Delete") {
-      store.deleteSelected();
-      return;
-    }
-    const tool = toolKeys[e.key.toLowerCase()];
-    if (tool !== undefined) store.selectTool(tool);
+// Or join a Yjs/CRDT room from the URL: ?yjs=<room> (same-origin BroadcastChannel
+// provider; the adapter itself works with any provider). Exposed for E2E tests.
+const yjsRoom = params.get("yjs");
+if (yjsRoom !== null) {
+  const palette = ["#e64980", "#4263eb", "#0ca678", "#f08c00", "#ae3ec9"];
+  const peer = {
+    id: `web-${Math.random().toString(36).slice(2, 8)}`,
+    name: params.get("name") ?? "Guest",
+    color: palette[Math.floor(Math.random() * palette.length)]!,
+  };
+  const ydoc = new Y.Doc();
+  const awareness = new Awareness(ydoc);
+  const provider = new BroadcastChannelProvider(ydoc, yjsRoom, awareness);
+  const collab = new YjsCollab(store, ydoc, {
+    awareness: awareness as unknown as AwarenessLike,
+    peer,
+  });
+  collab.start();
+  (window as unknown as { __yjs?: unknown }).__yjs = { doc: ydoc, collab, provider, awareness };
+}
+// The store is plain TS, so its reads aren't reactive on their own. Poll the
+// revision counter and expose store-derived UI state through `view`, which
+// re-derives whenever `rev` changes (fine-grained reactivity in runes mode).
+let rev = $state(0);
+$effect(() => {
+  const id = setInterval(() => {
+    rev = store.revision;
+  }, 40);
+  return () => clearInterval(id);
+});
+const view = $derived.by(() => {
+  void rev;
+  return {
+    tool: store.activeTool,
+    canUndo: store.canUndo,
+    canRedo: store.canRedo,
+    zoom: store.zoomPercent,
+    theme: store.theme,
+    stats: store.selectionStats,
+    editing: store.editingText,
+    table: store.selectedTableGroup,
+    chart: store.editingChart,
+    peers: store.collab === null ? [] : [...store.collab.peers.values()],
+    selectedCount: store.selectedCount,
+    canGroup: store.canGroupSelection,
+    canUngroup: store.canUngroupSelection,
+  };
+});
+
+// The style panel shows contextually: with a selection, or while a tool that
+// creates styled elements is active (excalidraw's left panel behaviour).
+const styledTools = new Set<Tool>([
+  "rectangle",
+  "diamond",
+  "ellipse",
+  "arrow",
+  "line",
+  "freedraw",
+  "text",
+  "frame",
+]);
+const panelOpen = $derived(view.selectedCount > 0 || styledTools.has(view.tool));
+// The style panel starts collapsed; a small toggle island expands it.
+let panelExpanded = $state(false);
+// The "more tools" dropdown (extra tools + generators), excalidraw-style.
+let moreOpen = $state(false);
+
+// Right-click context menu over the canvas (scene coords not needed: it acts
+// on the current selection). `null` when hidden.
+let menu = $state<{ x: number; y: number } | null>(null);
+function openMenu(e: MouseEvent): void {
+  e.preventDefault();
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  menu = { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function closeMenu(): void {
+  menu = null;
+}
+function runMenu(action: () => void): void {
+  action();
+  closeMenu();
+}
+
+// Minimal inline SVG icons (24px viewBox, stroked in currentColor) — the
+// toolbar is icon-only with shortcut badges, like excalidraw's island.
+const svg = (body: string) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const icons: Record<string, string> = {
+  hand: svg(
+    '<path d="M8 11.5V5.7a1.45 1.45 0 0 1 2.9 0V10"/><path d="M10.9 10V4.2a1.45 1.45 0 0 1 2.9 0V10"/><path d="M13.8 10.3V5.4a1.45 1.45 0 0 1 2.9 0v6.1"/><path d="M16.7 9.9a1.45 1.45 0 0 1 2.9 0v4.6a7 7 0 0 1-7 7h-1.1c-1.9 0-3.4-.6-4.6-1.8l-3.3-3.4a1.55 1.55 0 0 1 2.2-2.2L8 16.2v-4.7"/>',
+  ),
+  selection: svg('<path d="M6 3.5 18.5 12l-6 1.3L10 19.5z"/>'),
+  rectangle: svg('<rect x="4" y="5" width="16" height="14" rx="2"/>'),
+  diamond: svg('<path d="M12 3l8.5 9-8.5 9-8.5-9z"/>'),
+  ellipse: svg('<circle cx="12" cy="12" r="8.5"/>'),
+  arrow: svg('<path d="M5 19 19 5"/><path d="M11.5 5H19v7.5"/>'),
+  line: svg('<path d="M5 17h14"/>'),
+  freedraw: svg('<path d="M4.5 19.5l1-4L16.7 4.3a2 2 0 0 1 2.9 3L8.5 18.5l-4 1z"/>'),
+  text: svg('<path d="M5.5 6V4.5h13V6"/><path d="M12 4.5v15"/><path d="M9.5 19.5h5"/>'),
+  image: svg(
+    '<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9.2" cy="10" r="1.4"/><path d="M5 17l4.5-4.5 3.5 3.5 2.3-2.3L19 17"/>',
+  ),
+  eraser: svg(
+    '<path d="M7.5 20h11"/><path d="M5 14.5 12.8 6.7a2 2 0 0 1 2.8 0l2.7 2.7a2 2 0 0 1 0 2.8L13.5 17H9.8z"/>',
+  ),
+  frame: svg('<path d="M4.5 8h15M4.5 16h15M8 4.5v15M16 4.5v15"/>'),
+  laser: svg(
+    '<circle cx="12" cy="12" r="2.6"/><path d="M12 4.5V6M12 18v1.5M4.5 12H6M18 12h1.5M6.7 6.7l1.1 1.1M16.2 16.2l1.1 1.1M17.3 6.7l-1.1 1.1M7.8 16.2l-1.1 1.1"/>',
+  ),
+  note: svg('<path d="M5 4.5h14v9.5l-4.5 5.5H5z"/><path d="M14.5 19.5V14H19"/>'),
+  table: svg('<rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M10 10v9M15 10v9"/>'),
+  chart: svg(
+    '<path d="M4.5 4.5v15h15"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
+  ),
+  mermaid: svg(
+    '<rect x="4" y="4" width="7.5" height="5" rx="1"/><rect x="12.5" y="15" width="7.5" height="5" rx="1"/><path d="M7.75 9v4.5a2 2 0 0 0 2 2h2.75M16.25 15v-3"/>',
+  ),
+  sliders: svg(
+    '<path d="M5.5 5v5M5.5 14v5M12 5v2.5M12 11.5V19M18.5 5v8M18.5 17v2"/><circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="9.5" r="1.6"/><circle cx="18.5" cy="15" r="1.6"/>',
+  ),
+  chevronLeft: svg('<path d="M14.5 6 9 12l5.5 6"/>'),
+  shapes: svg(
+    '<rect x="4" y="4" width="8.5" height="8.5" rx="1.5"/><circle cx="16" cy="16" r="4.5"/><path d="M16 4.5v6M13 7.5h6"/>',
+  ),
+};
+
+const toolDefs: { tool: Tool; badge: string; title: string }[] = [
+  { tool: "hand", badge: "H", title: "Hand (panning tool) — H" },
+  { tool: "selection", badge: "1", title: "Selection — 1 or V" },
+  { tool: "rectangle", badge: "2", title: "Rectangle — 2 or R" },
+  { tool: "diamond", badge: "3", title: "Diamond — 3 or D" },
+  { tool: "ellipse", badge: "4", title: "Ellipse — 4 or O" },
+  { tool: "arrow", badge: "5", title: "Arrow — 5 or A" },
+  { tool: "line", badge: "6", title: "Line — 6 or L" },
+  { tool: "freedraw", badge: "7", title: "Draw — 7 or P" },
+  { tool: "text", badge: "8", title: "Text — 8 or T" },
+  { tool: "eraser", badge: "0", title: "Eraser — 0 or E" },
+];
+
+let fileInput: HTMLInputElement;
+
+function importImage(e: Event): void {
+  const file = (e.currentTarget as HTMLInputElement).files?.[0];
+  if (file === undefined) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataURL = reader.result as string;
+    const img = new Image();
+    img.onload = () => store.insertImage(dataURL, file.type, img.naturalWidth, img.naturalHeight);
+    img.src = dataURL;
+  };
+  reader.readAsDataURL(file);
+}
+
+// biome-ignore-start lint/style/useConst: `bind:value` assigns to these $state vars
+let strokeColor = $state("#1e1e1e");
+let backgroundColor = $state("transparent");
+let strokeWidth = $state(2);
+let elbowed = $state(false);
+let fillStyle = $state<FillStyle>("hachure");
+// biome-ignore-end lint/style/useConst: `bind:value` assigns to these $state vars
+
+function pick(tool: Tool): void {
+  store.selectTool(tool);
+}
+
+/** Focus the on-canvas editor on mount with the caret at the end. The HTML
+ * `autofocus` attribute is skipped when another element (e.g. the Note
+ * toolbar button that opened the editor) already has focus. */
+function focusEditor(node: HTMLTextAreaElement): void {
+  node.focus();
+  node.setSelectionRange(node.value.length, node.value.length);
+}
+
+function downloadSvg(): void {
+  const blob = new Blob([store.exportSvg()], { type: "image/svg+xml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "drawing.svg";
+  a.click();
+}
+
+function downloadJson(): void {
+  const blob = new Blob([store.documentJSON()], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "drawing.excalidraw";
+  a.click();
+}
+
+const mermaidSample =
+  "flowchart TD\n  A[Start] --> B{OK?}\n  B -->|Yes| C[Ship]\n  B -->|No| D[Fix]";
+
+// Letter and number shortcuts, mirroring excalidraw's map (1–8 tools, 9 image,
+// 0 eraser).
+const toolKeys: Record<string, Tool> = {
+  v: "selection",
+  r: "rectangle",
+  d: "diamond",
+  o: "ellipse",
+  a: "arrow",
+  l: "line",
+  p: "freedraw",
+  t: "text",
+  e: "eraser",
+  h: "hand",
+  f: "frame",
+  k: "laser",
+  "1": "selection",
+  "2": "rectangle",
+  "3": "diamond",
+  "4": "ellipse",
+  "5": "arrow",
+  "6": "line",
+  "7": "freedraw",
+  "8": "text",
+  "0": "eraser",
+};
+
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === "Escape" && menu !== null) {
+    closeMenu();
+    return;
   }
+  if (e.key === "Escape" && moreOpen) {
+    moreOpen = false;
+    return;
+  }
+  // Escape abandons a click-started arrow awaiting its destination.
+  if (e.key === "Escape" && store.cancelPendingArrow()) return;
+  // While a text editor is open every key belongs to it — tool shortcuts and
+  // delete/backspace must never fire. Escape commits and closes the editor.
+  if (store.editingText !== null) {
+    if (e.key === "Escape") store.commitText();
+    return;
+  }
+  const target = e.target as HTMLElement | null;
+  const tag = target?.tagName ?? "";
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === "z") {
+    e.preventDefault();
+    if (e.shiftKey) store.redo();
+    else store.undo();
+    return;
+  }
+  if (mod && e.key.toLowerCase() === "d") {
+    e.preventDefault();
+    store.duplicate();
+    return;
+  }
+  if (mod && e.key.toLowerCase() === "a") {
+    e.preventDefault();
+    store.selectAll();
+    return;
+  }
+  if (e.key === "Backspace" || e.key === "Delete") {
+    store.deleteSelected();
+    return;
+  }
+  if (mod) return; // don't let Cmd/Ctrl+digit browser shortcuts switch tools
+  if (e.key === "9") {
+    fileInput.click(); // 9 = insert image, like excalidraw
+    return;
+  }
+  const tool = toolKeys[e.key.toLowerCase()];
+  if (tool !== undefined) store.selectTool(tool);
+}
 </script>
 
 <svelte:window onkeydown={onKeydown} />
 
 <div class="app" data-theme={view.theme} data-rev={rev}>
-  <header class="toolbar">
-    {#each tools as t (t.tool)}
-      <button data-testid={`tool-${t.tool}`} class:active={view.tool === t.tool} onclick={() => pick(t.tool)}>{t.label}</button>
-    {/each}
-    <span class="sep"></span>
-    <button data-testid="gen-note" onclick={() => store.insertStickyNote()}>Note</button>
-    <button data-testid="gen-table" onclick={() => store.insertTable()}>Table</button>
-    <button data-testid="gen-chart" onclick={() => store.insertChart([10, 20, 15, 30])}>Chart</button>
-    <button data-testid="gen-mermaid" onclick={() => store.insertMermaid(mermaidSample)}>Mermaid</button>
-    <button data-testid="gen-image" onclick={() => fileInput.click()}>Image</button>
-    <input bind:this={fileInput} type="file" accept="image/*" hidden onchange={importImage} />
-  </header>
-
-  <section class="props">
-    <label>Stroke <input type="color" bind:value={strokeColor} onchange={() => store.setStrokeColor(strokeColor)} /></label>
-    <label>Fill <input type="color" bind:value={backgroundColor} onchange={() => store.setBackgroundColor(backgroundColor)} /></label>
-    <label>Pattern
-      <select data-testid="fill-style" bind:value={fillStyle} onchange={() => store.setFillStyle(fillStyle)}>
-        <option value="hachure">Hachure</option>
-        <option value="cross-hatch">Cross-hatch</option>
-        <option value="solid">Solid</option>
-        <option value="zigzag">Zigzag</option>
-      </select>
-    </label>
-    <label>Width
-      <input type="range" min="1" max="12" bind:value={strokeWidth} onchange={() => store.setStrokeWidth(strokeWidth)} />
-    </label>
-    <label><input type="checkbox" bind:checked={elbowed} onchange={() => store.setElbowed(elbowed)} /> Elbow</label>
-    <span class="sep"></span>
-    <button data-testid="undo" onclick={() => store.undo()} disabled={!view.canUndo}>Undo</button>
-    <button data-testid="redo" onclick={() => store.redo()} disabled={!view.canRedo}>Redo</button>
-    <button data-testid="delete" onclick={() => store.deleteSelected()}>Delete</button>
-    <button data-testid="duplicate" onclick={() => store.duplicate()}>Duplicate</button>
-    <button data-testid="group" onclick={() => store.group()}>Group</button>
-    <button onclick={() => store.ungroup()}>Ungroup</button>
-    {#if view.table !== null}
-      <span class="sep"></span>
-      <button data-testid="table-add-row" onclick={() => store.addTableRow()}>+ Row</button>
-      <button data-testid="table-add-col" onclick={() => store.addTableColumn()}>+ Col</button>
-    {/if}
-    <span class="sep"></span>
-    <button title="Align left" onclick={() => store.align("left")}>⇤</button>
-    <button title="Align centre" onclick={() => store.align("centerX")}>↔</button>
-    <button title="Align right" onclick={() => store.align("right")}>⇥</button>
-    <button title="Flip horizontal" onclick={() => store.flip(true)}>⇋</button>
-    <button title="Bring to front" onclick={() => store.reorder("front")}>⤒</button>
-    <button title="Send to back" onclick={() => store.reorder("back")}>⤓</button>
-  </section>
-
   <main class="stage" oncontextmenu={openMenu}>
     <Canvas {store} {rev} />
     {#if view.editing !== null}
-      <!-- svelte-ignore a11y_autofocus -->
+      <!-- Container-bound labels (viewW set) centre the caret in the shape:
+           text-align centres horizontally, padding-top centres the line block
+           vertically and re-centres as lines are added (25px = the editor's
+           line-height). -->
       <textarea
         class="text-editor"
+        class:centered={view.editing.viewW !== undefined}
         data-testid="text-editor"
-        autofocus
+        use:focusEditor
         style="left:{view.editing.viewX}px;top:{view.editing.viewY}px{view.editing.viewW
-          ? `;width:${view.editing.viewW}px;min-width:0;height:${view.editing.viewH}px`
+          ? `;width:${view.editing.viewW}px;min-width:0;height:${view.editing.viewH}px;padding-top:${Math.max(
+              0,
+              ((view.editing.viewH ?? 0) - view.editing.value.split('\n').length * 25) / 2,
+            )}px`
           : ''}"
         value={view.editing.value}
         oninput={(e) => store.setEditingText((e.currentTarget as HTMLTextAreaElement).value)}
@@ -267,13 +328,16 @@
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             store.commitText();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            store.commitText();
           }
         }}
       ></textarea>
     {/if}
     {#if view.chart !== null}
-      <div class="chart-editor" data-testid="chart-editor" style="left:{view.chart.viewX}px;top:{view.chart.viewY}px">
-        <label>Plot
+      <div class="island chart-editor" data-testid="chart-editor" style="left:{view.chart.viewX}px;top:{view.chart.viewY}px">
+        <label class="inline">Plot
           <select
             data-testid="chart-kind"
             value={view.chart.kind}
@@ -283,7 +347,7 @@
             <option value="line">Line</option>
           </select>
         </label>
-        <label>Data
+        <label class="inline">Data
           <input
             data-testid="chart-data"
             type="text"
@@ -291,8 +355,8 @@
             oninput={(e) => store.setChartValues((e.currentTarget as HTMLInputElement).value)}
           />
         </label>
-        <button data-testid="chart-apply" onclick={() => store.commitChart()}>Apply</button>
-        <button onclick={() => store.cancelChart()}>Cancel</button>
+        <button class="chip" data-testid="chart-apply" onclick={() => store.commitChart()}>Apply</button>
+        <button class="chip" onclick={() => store.cancelChart()}>Cancel</button>
       </div>
     {/if}
     {#if menu !== null}
@@ -306,7 +370,7 @@
           closeMenu();
         }}
       ></button>
-      <div class="context-menu" data-testid="context-menu" style="left:{menu.x}px;top:{menu.y}px">
+      <div class="island context-menu" data-testid="context-menu" style="left:{menu.x}px;top:{menu.y}px">
         <button data-testid="ctx-duplicate" disabled={view.selectedCount === 0} onclick={() => runMenu(() => store.duplicate())}>Duplicate</button>
         <button data-testid="ctx-group" disabled={!view.canGroup} onclick={() => runMenu(() => store.group())}>Group</button>
         <button data-testid="ctx-ungroup" disabled={!view.canUngroup} onclick={() => runMenu(() => store.ungroup())}>Ungroup</button>
@@ -320,46 +384,457 @@
     {/if}
   </main>
 
-  <footer class="status">
-    <button data-testid="zoom-out" onclick={() => store.zoomOut()}>−</button>
-    <button data-testid="zoom-reset" onclick={() => store.resetZoom()}>{view.zoom}%</button>
-    <button data-testid="zoom-in" onclick={() => store.zoomIn()}>+</button>
-    <span class="sep"></span>
-    <span data-testid="selection-stats">{view.stats ?? ""}</span>
-    <span class="grow"></span>
+  <div class="top-center">
+    <div class="island toolbar" role="toolbar" aria-label="Drawing tools">
+      {#each toolDefs as t (t.tool)}
+        <button
+          class="tool"
+          data-testid={`tool-${t.tool}`}
+          class:active={view.tool === t.tool}
+          title={t.title}
+          aria-label={t.title}
+          onclick={() => pick(t.tool)}
+        >
+          <!-- eslint-disable-next-line svelte/no-at-html-tags — static icon strings -->
+          {@html icons[t.tool]}
+          <span class="badge">{t.badge}</span>
+        </button>
+      {/each}
+      <span class="divider"></span>
+      <button class="tool" data-testid="gen-image" title="Insert image — 9" aria-label="Insert image — 9" onclick={() => fileInput.click()}>
+        {@html icons.image}
+        <span class="badge">9</span>
+      </button>
+      <button
+        class="tool"
+        data-testid="more-tools"
+        title="More tools"
+        aria-label="More tools"
+        aria-expanded={moreOpen}
+        class:active={moreOpen || view.tool === "frame" || view.tool === "laser"}
+        onclick={() => {
+          moreOpen = !moreOpen;
+        }}
+      >
+        {@html icons.shapes}
+      </button>
+      {#if moreOpen}
+        <button
+          type="button"
+          class="menu-backdrop"
+          aria-label="Close more tools"
+          onclick={() => {
+            moreOpen = false;
+          }}
+        ></button>
+        <div class="island more-menu" data-testid="more-menu" role="menu">
+          <button class="menu-item" data-testid="tool-frame" class:active={view.tool === "frame"} onclick={() => { pick("frame"); moreOpen = false; }}>
+            <span class="mi-icon">{@html icons.frame}</span>Frame tool<kbd>F</kbd>
+          </button>
+          <button class="menu-item" data-testid="tool-laser" class:active={view.tool === "laser"} onclick={() => { pick("laser"); moreOpen = false; }}>
+            <span class="mi-icon">{@html icons.laser}</span>Laser pointer<kbd>K</kbd>
+          </button>
+          <div class="menu-head">Generate</div>
+          <button class="menu-item" data-testid="gen-note" onclick={() => { store.insertStickyNote(); moreOpen = false; }}>
+            <span class="mi-icon">{@html icons.note}</span>Sticky note
+          </button>
+          <button class="menu-item" data-testid="gen-table" onclick={() => { store.insertTable(); moreOpen = false; }}>
+            <span class="mi-icon">{@html icons.table}</span>Table
+          </button>
+          <button class="menu-item" data-testid="gen-chart" onclick={() => { store.insertChart([10, 20, 15, 30]); moreOpen = false; }}>
+            <span class="mi-icon">{@html icons.chart}</span>Chart
+          </button>
+          <button class="menu-item" data-testid="gen-mermaid" onclick={() => { store.insertMermaid(mermaidSample); moreOpen = false; }}>
+            <span class="mi-icon">{@html icons.mermaid}</span>Mermaid diagram
+          </button>
+        </div>
+      {/if}
+    </div>
+    <p class="hint">
+      To move canvas, hold <kbd>Middle mouse button</kbd> while dragging, or use the hand tool
+    </p>
+  </div>
+
+  <input bind:this={fileInput} type="file" accept="image/*" hidden onchange={importImage} />
+
+  {#if panelOpen && !panelExpanded}
+    <button
+      class="island tool panel-toggle"
+      data-testid="panel-toggle"
+      title="Show style panel"
+      aria-label="Show style panel"
+      onclick={() => {
+        panelExpanded = true;
+      }}
+    >
+      {@html icons.sliders}
+    </button>
+  {/if}
+  {#if panelOpen && panelExpanded}
+    <aside class="island panel">
+      <header class="panel-head">
+        <h3>Styles</h3>
+        <button
+          class="tool slim"
+          data-testid="panel-collapse"
+          title="Hide style panel"
+          aria-label="Hide style panel"
+          onclick={() => {
+            panelExpanded = false;
+          }}
+        >
+          {@html icons.chevronLeft}
+        </button>
+      </header>
+      <section>
+        <h4>Stroke</h4>
+        <div class="row">
+          <input type="color" bind:value={strokeColor} onchange={() => store.setStrokeColor(strokeColor)} aria-label="Stroke color" />
+          <label class="inline">Width
+            <input type="range" min="1" max="12" bind:value={strokeWidth} onchange={() => store.setStrokeWidth(strokeWidth)} />
+          </label>
+        </div>
+      </section>
+      <section>
+        <h4>Background</h4>
+        <div class="row">
+          <input type="color" bind:value={backgroundColor} onchange={() => store.setBackgroundColor(backgroundColor)} aria-label="Background color" />
+          <select data-testid="fill-style" bind:value={fillStyle} onchange={() => store.setFillStyle(fillStyle)} aria-label="Fill style">
+            <option value="hachure">Hachure</option>
+            <option value="cross-hatch">Cross-hatch</option>
+            <option value="solid">Solid</option>
+            <option value="zigzag">Zigzag</option>
+          </select>
+        </div>
+      </section>
+      <section>
+        <h4>Arrows</h4>
+        <label class="inline">
+          <input type="checkbox" bind:checked={elbowed} onchange={() => store.setElbowed(elbowed)} />
+          Elbow arrows
+        </label>
+      </section>
+      <section>
+        <h4>Actions</h4>
+        <div class="row wrap">
+          <button class="chip" data-testid="delete" onclick={() => store.deleteSelected()}>Delete</button>
+          <button class="chip" data-testid="duplicate" onclick={() => store.duplicate()}>Duplicate</button>
+          <button class="chip" data-testid="group" onclick={() => store.group()}>Group</button>
+          <button class="chip" onclick={() => store.ungroup()}>Ungroup</button>
+        </div>
+      </section>
+      <section>
+        <h4>Arrange</h4>
+        <div class="row wrap">
+          <button class="chip" title="Align left" onclick={() => store.align("left")}>⇤</button>
+          <button class="chip" title="Align centre" onclick={() => store.align("centerX")}>↔</button>
+          <button class="chip" title="Align right" onclick={() => store.align("right")}>⇥</button>
+          <button class="chip" title="Flip horizontal" onclick={() => store.flip(true)}>⇋</button>
+          <button class="chip" title="Bring to front" onclick={() => store.reorder("front")}>⤒</button>
+          <button class="chip" title="Send to back" onclick={() => store.reorder("back")}>⤓</button>
+        </div>
+      </section>
+      {#if view.table !== null}
+        <section>
+          <h4>Table</h4>
+          <div class="row wrap">
+            <button class="chip" data-testid="table-add-row" onclick={() => store.addTableRow()}>+ Row</button>
+            <button class="chip" data-testid="table-add-col" onclick={() => store.addTableColumn()}>+ Col</button>
+          </div>
+        </section>
+      {/if}
+    </aside>
+  {/if}
+
+  <div class="bottom-left">
+    <div class="island bar">
+      <button class="tool slim" data-testid="zoom-out" title="Zoom out" onclick={() => store.zoomOut()}>−</button>
+      <button class="zoom-reset" data-testid="zoom-reset" title="Reset zoom" onclick={() => store.resetZoom()}>{view.zoom}%</button>
+      <button class="tool slim" data-testid="zoom-in" title="Zoom in" onclick={() => store.zoomIn()}>+</button>
+    </div>
+    <div class="island bar">
+      <button class="tool slim" data-testid="undo" title="Undo" onclick={() => store.undo()} disabled={!view.canUndo}>↺</button>
+      <button class="tool slim" data-testid="redo" title="Redo" onclick={() => store.redo()} disabled={!view.canRedo}>↻</button>
+    </div>
+    <span class="stats" data-testid="selection-stats">{view.stats ?? ""}</span>
+  </div>
+
+  <div class="bottom-right">
     {#if view.peers.length > 0}
-      <span class="peers" data-testid="peers">
+      <span class="island bar peers" data-testid="peers">
         {#each view.peers as p (p.id)}
           <span class="peer" style="background:{p.color}" title={p.name}>{p.name}</span>
         {/each}
       </span>
     {/if}
-    <button data-testid="theme" onclick={() => store.toggleTheme()}>{view.theme === "light" ? "🌙" : "☀️"}</button>
-    <button data-testid="export-svg" onclick={downloadSvg}>Export SVG</button>
-    <button data-testid="save" onclick={downloadJson}>Save</button>
-  </footer>
+    <div class="island bar">
+      <button class="tool slim" data-testid="theme" title="Toggle theme" onclick={() => store.toggleTheme()}>{view.theme === "light" ? "🌙" : "☀️"}</button>
+      <button class="chip" data-testid="export-svg" onclick={downloadSvg}>Export SVG</button>
+      <button class="chip" data-testid="save" onclick={downloadJson}>Save</button>
+    </div>
+  </div>
 </div>
 
 <style>
-  .app { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto 1fr auto; }
-  .app[data-theme="dark"] { background: #121212; color: #eee; }
-  .toolbar, .props, .status { display: flex; gap: 6px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #0002; flex-wrap: wrap; }
-  .status { border-top: 1px solid #0002; border-bottom: none; }
-  button { padding: 4px 8px; border: 1px solid #0003; border-radius: 6px; background: #fff; cursor: pointer; }
-  .app[data-theme="dark"] button { background: #2a2a2a; color: #eee; border-color: #fff3; }
-  button.active { background: #4263eb; color: #fff; border-color: #4263eb; }
-  .stage { position: relative; }
+  .app {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    --island: #ffffff;
+    --ink: #1b1b1f;
+    --muted: #8e8ea4;
+    --border: #00000014;
+    --hover: #f1f0ff;
+    --active-bg: #e0dfff;
+    --active-ink: #030064;
+    --shadow: 0 0 0 1px var(--border), 0 7px 14px #0000000d, 0 2px 4px #00000014;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
+  }
+  .app[data-theme="dark"] {
+    --island: #232329;
+    --ink: #e2e2e7;
+    --muted: #8b8b9d;
+    --border: #ffffff1a;
+    --hover: #2e2d39;
+    --active-bg: #403e6a;
+    --active-ink: #e2dfff;
+    --shadow: 0 0 0 1px var(--border), 0 7px 14px #00000059, 0 2px 4px #0000004d;
+  }
+
+  .stage { position: absolute; inset: 0; }
+
+  .island {
+    background: var(--island);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+
+  /* ── top toolbar island ─────────────────────────────────────────────── */
+  .top-center {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .top-center .island { pointer-events: auto; }
+  .toolbar { position: relative; display: flex; align-items: center; gap: 2px; padding: 4px; }
+  .menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: default;
+  }
+  .more-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    padding: 5px;
+  }
+  .menu-head {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    padding: 8px 10px 4px;
+  }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    font-size: 13px;
+    text-align: left;
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+  }
+  .menu-item:hover { background: var(--hover); }
+  .menu-item.active { background: var(--active-bg); color: var(--active-ink); }
+  .menu-item .mi-icon { display: grid; place-items: center; }
+  .menu-item .mi-icon :global(svg) { width: 17px; height: 17px; }
+  .menu-item kbd {
+    margin-left: auto;
+    font: 11px ui-monospace, Menlo, monospace;
+    color: var(--muted);
+  }
+  .tool {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .tool :global(svg) { width: 19px; height: 19px; }
+  .tool:hover:not(:disabled) { background: var(--hover); }
+  .tool.active { background: var(--active-bg); color: var(--active-ink); }
+  .tool:disabled { opacity: 0.35; cursor: default; }
+  .tool .badge {
+    position: absolute;
+    right: 3px;
+    bottom: 1px;
+    font-size: 9px;
+    color: var(--muted);
+  }
+  .tool.active .badge { color: var(--active-ink); opacity: 0.7; }
+  .divider { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+  .hint { margin: 0; font-size: 12px; color: var(--muted); user-select: none; }
+  .hint kbd {
+    font: 11px ui-monospace, Menlo, monospace;
+    padding: 1px 5px;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+  }
+
+  /* ── contextual style panel (left) ──────────────────────────────────── */
+  .panel-toggle {
+    position: absolute;
+    top: 80px;
+    left: 16px;
+    z-index: 3;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: -2px 0 -4px;
+  }
+  .panel-head h3 {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .panel {
+    position: absolute;
+    top: 80px;
+    left: 16px;
+    width: 208px;
+    max-height: calc(100% - 160px);
+    overflow-y: auto;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 3;
+  }
+  .panel h4 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row.wrap { flex-wrap: wrap; }
+  .panel input[type="color"] {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .panel input[type="range"] { width: 110px; }
+  .panel select {
+    background: var(--island);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+  label.inline {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12.5px;
+  }
+
+  /* ── chips (small text buttons) ─────────────────────────────────────── */
+  .chip {
+    padding: 5px 9px;
+    font-size: 12.5px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .chip:hover:not(:disabled) { background: var(--hover); }
+  .chip:disabled { opacity: 0.35; cursor: default; }
+
+  /* ── bottom islands ─────────────────────────────────────────────────── */
+  .bottom-left,
+  .bottom-right {
+    position: absolute;
+    bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 4;
+  }
+  .bottom-left { left: 16px; }
+  .bottom-right { right: 16px; }
+  .bar { display: flex; align-items: center; gap: 2px; padding: 3px; }
+  .tool.slim { width: 30px; height: 30px; font-size: 15px; }
+  .zoom-reset {
+    min-width: 52px;
+    padding: 5px 6px;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .zoom-reset:hover { background: var(--hover); }
+  .stats { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .peers { padding: 5px 8px; display: inline-flex; gap: 4px; }
+  .peer { color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+
+  /* ── on-canvas editors & context menu ───────────────────────────────── */
   .text-editor {
     position: absolute;
+    box-sizing: border-box;
     min-width: 120px;
     min-height: 28px;
-    /* Match the canvas's default hand-drawn text face so editing is WYSIWYG. */
-    font: 20px "Excalifont", "Virgil", "Bradley Hand", "Comic Sans MS", "Segoe Print", cursive;
-    border: 1px dashed #4263eb;
+    /* Match the canvas's default hand-drawn text face so editing is WYSIWYG.
+       line-height 25px = fontSize 20 × the model's 1.25 line height; the
+       centred editor's padding math keys on it. */
+    font: 20px / 25px "Excalifont", "Virgil", "Bradley Hand", "Comic Sans MS", "Segoe Print", cursive;
+    border: 1px dashed #6965db;
     background: transparent;
+    color: inherit;
     resize: none;
     outline: none;
     padding: 0;
+  }
+  .text-editor.centered {
+    text-align: center;
+    overflow: hidden;
   }
   .chart-editor {
     position: absolute;
@@ -367,41 +842,52 @@
     gap: 8px;
     align-items: center;
     padding: 8px 10px;
-    background: #fff;
-    border: 1px solid #4263eb;
-    border-radius: 8px;
-    box-shadow: 0 4px 16px #0003;
     z-index: 10;
   }
-  .app[data-theme="dark"] .chart-editor { background: #2a2a2a; color: #eee; }
-  .chart-editor input[type="text"] { width: 140px; }
-  .ctx-backdrop { position: fixed; inset: 0; z-index: 20; padding: 0; border: none; border-radius: 0; background: transparent; cursor: default; }
+  .chart-editor input[type="text"] {
+    width: 140px;
+    background: var(--island);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 6px;
+  }
+  .chart-editor select {
+    background: var(--island);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 6px;
+  }
+  .ctx-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    cursor: default;
+  }
   .context-menu {
     position: absolute;
     z-index: 21;
     display: flex;
     flex-direction: column;
-    min-width: 150px;
+    min-width: 160px;
     padding: 4px;
-    background: #fff;
-    border: 1px solid #0003;
-    border-radius: 8px;
-    box-shadow: 0 6px 20px #0003;
   }
-  .app[data-theme="dark"] .context-menu { background: #2a2a2a; color: #eee; border-color: #fff3; }
   .context-menu button {
     border: none;
     background: transparent;
+    color: var(--ink);
     text-align: left;
+    font-size: 13px;
     border-radius: 6px;
     padding: 6px 10px;
+    cursor: pointer;
   }
-  .context-menu button:not(:disabled):hover { background: #4263eb22; }
+  .context-menu button:not(:disabled):hover { background: var(--hover); }
   .context-menu button:disabled { opacity: 0.4; cursor: default; }
-  .ctx-sep { height: 1px; margin: 4px 6px; background: #0002; }
-  .peers { display: inline-flex; gap: 4px; }
-  .peer { color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
-  .sep { width: 1px; align-self: stretch; background: #0002; margin: 0 4px; }
-  .grow { flex: 1; }
-  label { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; }
+  .ctx-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 </style>

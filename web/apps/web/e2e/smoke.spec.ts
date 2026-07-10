@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 import {
   clickCanvas,
+  insertGenerator,
+  openPanel,
   drag,
   elementCount,
   read,
   ready,
-  selectedCount,
   selectTool,
+  selectedCount,
   shot,
 } from "./helpers.js";
 
@@ -48,12 +50,13 @@ test("selects, transforms, duplicates, and undoes", async ({ page }) => {
   await drag(page, { x: 0.55, y: 0.3 }, { x: 0.75, y: 0.5 });
   expect(await elementCount(page)).toBe(2);
 
-  // Box-select both with a marquee from empty space.
+  // Box-select both with a marquee from empty space (above the style panel).
   await selectTool(page, "selection");
-  await drag(page, { x: 0.1, y: 0.15 }, { x: 0.9, y: 0.7 });
+  await drag(page, { x: 0.1, y: 0.08 }, { x: 0.9, y: 0.7 });
   expect(await selectedCount(page)).toBe(2);
   await shot(page, "02-selection");
 
+  await openPanel(page);
   await page.getByTestId("duplicate").click();
   expect(await elementCount(page)).toBe(4);
 
@@ -64,13 +67,13 @@ test("selects, transforms, duplicates, and undoes", async ({ page }) => {
 });
 
 test("inserts the generators (table, sticky note, chart, mermaid)", async ({ page }) => {
-  await page.getByTestId("gen-table").click();
+  await insertGenerator(page, "table");
   expect(await elementCount(page)).toBe(18); // 3×3 cells + labels
 
-  await page.getByTestId("gen-note").click();
-  expect(await read(page, (s) => s.scene.visibleElements.some((e) => e.backgroundColor === "#ffec99"))).toBe(
-    true,
-  );
+  await insertGenerator(page, "note");
+  expect(
+    await read(page, (s) => s.scene.visibleElements.some((e) => e.backgroundColor === "#ffec99")),
+  ).toBe(true);
   // Inserting a sticky note opens its text editor; typing must land on the bound text.
   const noteEditor = page.getByTestId("text-editor");
   await expect(noteEditor).toBeVisible();
@@ -78,14 +81,18 @@ test("inserts the generators (table, sticky note, chart, mermaid)", async ({ pag
   await noteEditor.press("Enter");
   expect(
     await read(page, (s) =>
-      s.scene.visibleElements.some((e) => e.type === "text" && e.containerId !== null && e.text === "Idea!"),
+      s.scene.visibleElements.some(
+        (e) => e.type === "text" && e.containerId !== null && e.text === "Idea!",
+      ),
     ),
   ).toBe(true);
 
-  await page.getByTestId("gen-chart").click();
-  await page.getByTestId("gen-mermaid").click();
+  await insertGenerator(page, "chart");
+  await insertGenerator(page, "mermaid");
   // Mermaid produces shapes + bound text + arrows.
-  expect(await read(page, (s) => s.scene.visibleElements.some((e) => e.type === "arrow"))).toBe(true);
+  expect(await read(page, (s) => s.scene.visibleElements.some((e) => e.type === "arrow"))).toBe(
+    true,
+  );
   await shot(page, "03-generators");
 });
 
@@ -93,27 +100,31 @@ test("types on-canvas text", async ({ page }) => {
   await selectTool(page, "text");
   await clickCanvas(page, { x: 0.35, y: 0.4 });
   // The text tool placed an editor in the store; the app shows a textarea.
-  expect(await read(page, (s) => (s as unknown as { editingText: unknown }).editingText !== null)).toBe(
-    true,
-  );
+  expect(
+    await read(page, (s) => (s as unknown as { editingText: unknown }).editingText !== null),
+  ).toBe(true);
   const editor = page.getByTestId("text-editor");
   await expect(editor).toBeVisible();
   await editor.fill("Hello web");
   await editor.press("Enter");
   expect(
-    await read(page, (s) => s.scene.visibleElements.some((e) => e.type === "text" && e.text === "Hello web")),
+    await read(page, (s) =>
+      s.scene.visibleElements.some((e) => e.type === "text" && e.text === "Hello web"),
+    ),
   ).toBe(true);
   await shot(page, "04-text");
 });
 
 test("the Mermaid diagram is grouped, labelled, and moves as one unit", async ({ page }) => {
-  await page.getByTestId("gen-mermaid").click();
+  await insertGenerator(page, "mermaid");
   await page.waitForTimeout(120);
   // Nodes (rect/diamond) + bound labels + connecting arrows.
   const shape = await read(page, (s) => ({
-    nodes: s.scene.visibleElements.filter((e) => e.type === "rectangle" || e.type === "diamond").length,
+    nodes: s.scene.visibleElements.filter((e) => e.type === "rectangle" || e.type === "diamond")
+      .length,
     arrows: s.scene.visibleElements.filter((e) => e.type === "arrow").length,
-    labels: s.scene.visibleElements.filter((e) => e.type === "text" && e.containerId !== null).length,
+    labels: s.scene.visibleElements.filter((e) => e.type === "text" && e.containerId !== null)
+      .length,
   }));
   expect(shape.nodes).toBeGreaterThanOrEqual(3);
   expect(shape.arrows).toBeGreaterThanOrEqual(2);
@@ -133,7 +144,11 @@ test("the Mermaid diagram is grouped, labelled, and moves as one unit", async ({
   await page.mouse.up();
   const after = await read(page, (s) => {
     const r = s.scene.visibleElements.find((e) => e.type === "rectangle")!;
-    return { x: r.x, y: r.y, arrows: s.scene.visibleElements.filter((e) => e.type === "arrow").length };
+    return {
+      x: r.x,
+      y: r.y,
+      arrows: s.scene.visibleElements.filter((e) => e.type === "arrow").length,
+    };
   });
   expect(after.x).toBeCloseTo(node.x0 + 100, 0);
   expect(after.y).toBeCloseTo(node.y0 - 60, 0);
@@ -142,12 +157,13 @@ test("the Mermaid diagram is grouped, labelled, and moves as one unit", async ({
 });
 
 test("tables gain rows and columns from the toolbar", async ({ page }) => {
-  await page.getByTestId("gen-table").click();
+  await insertGenerator(page, "table");
   const cells = () =>
     read(page, (s) => s.scene.visibleElements.filter((e) => e.type === "rectangle").length);
   expect(await cells()).toBe(9); // default 3×3
 
   // The table is selected after insert; the row/col buttons appear for it.
+  await openPanel(page);
   await expect(page.getByTestId("table-add-row")).toBeVisible();
   await page.getByTestId("table-add-row").click();
   expect(await cells()).toBe(12); // 4×3
@@ -158,7 +174,7 @@ test("tables gain rows and columns from the toolbar", async ({ page }) => {
 });
 
 test("double-clicking a table cell opens an editor sized to the cell", async ({ page }) => {
-  await page.getByTestId("gen-table").click();
+  await insertGenerator(page, "table");
   await selectTool(page, "selection");
   const cb = (await page.getByTestId("canvas").boundingBox())!;
   const cell = await read(page, (s) => {
@@ -178,7 +194,7 @@ test("double-clicking a table cell opens an editor sized to the cell", async ({ 
 });
 
 test("double-clicking a chart changes its plot type and data", async ({ page }) => {
-  await page.getByTestId("gen-chart").click(); // bar chart of [10,20,15,30] → 4 bars
+  await insertGenerator(page, "chart"); // bar chart of [10,20,15,30] → 4 bars
   const bars = () =>
     read(page, (s) => s.scene.visibleElements.filter((e) => e.type === "rectangle").length);
   expect(await bars()).toBe(4);
@@ -199,12 +215,14 @@ test("double-clicking a chart changes its plot type and data", async ({ page }) 
 
   // A line chart has no bars; the data became 5 points.
   expect(await bars()).toBe(0);
-  expect(await read(page, (s) => s.scene.visibleElements.some((e) => e.type === "line"))).toBe(true);
+  expect(await read(page, (s) => s.scene.visibleElements.some((e) => e.type === "line"))).toBe(
+    true,
+  );
   await shot(page, "13-chart-edited");
 });
 
 test("moving a sticky note carries its label and keeps a tight selection", async ({ page }) => {
-  await page.getByTestId("gen-note").click();
+  await insertGenerator(page, "note");
   const editor = page.getByTestId("text-editor");
   await editor.fill("Leo");
   await editor.press("Enter");
@@ -235,7 +253,9 @@ test("moving a sticky note carries its label and keeps a tight selection", async
   await shot(page, "07-note-moved");
 });
 
-test("double-clicking a line enters point (spline) editing and drags a vertex", async ({ page }) => {
+test("double-clicking a line enters point (spline) editing and drags a vertex", async ({
+  page,
+}) => {
   await selectTool(page, "line");
   await drag(page, { x: 0.2, y: 0.6 }, { x: 0.5, y: 0.72 });
   expect(await read(page, (s) => s.isLinearEditing)).toBe(false);
@@ -275,6 +295,7 @@ test("the fill-pattern selector changes a shape's fill style", async ({ page }) 
   // Box-select the rectangle, then switch its fill pattern.
   await selectTool(page, "selection");
   await drag(page, { x: 0.2, y: 0.2 }, { x: 0.7, y: 0.7 });
+  await openPanel(page);
   await page.getByTestId("fill-style").selectOption("cross-hatch");
   expect(
     await read(page, (s) =>

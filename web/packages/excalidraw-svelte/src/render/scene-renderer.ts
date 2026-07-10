@@ -12,6 +12,7 @@ import { fontString, measureTextWidth } from "../text-measure.js";
 import { type PathSink, opsToPath } from "./drawable-path.js";
 import { elementDrawable } from "./element-drawable.js";
 import { buildRoughOptions } from "./rough-options.js";
+import { themeColor } from "./theme-color.js";
 import type { Viewport } from "./viewport.js";
 
 /** The subset of `CanvasRenderingContext2D` the renderer uses. */
@@ -239,7 +240,17 @@ export function renderScene(ctx: RenderContext, scene: Scene, opts: RenderOption
   const region = visibleRegion(opts);
   const elements = cullVisible(scene.visibleElements, region, 100);
 
-  for (const el of elements) {
+  for (const source of elements) {
+    // Paint through a theme-mapped copy in dark mode so strokes/fills stay
+    // legible; the scene model keeps canonical (light-theme) colours.
+    const el =
+      theme === "dark"
+        ? {
+            ...source,
+            strokeColor: themeColor(source.strokeColor, theme),
+            backgroundColor: themeColor(source.backgroundColor, theme),
+          }
+        : source;
     ctx.save();
     ctx.globalAlpha = el.opacity / 100;
     ctx.translate(el.x, el.y);

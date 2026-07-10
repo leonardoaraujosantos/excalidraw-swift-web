@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { type Page, expect } from "@playwright/test";
 
 /** A read-only view of the app's editor store exposed on `window.__store`. */
 interface StoreView {
@@ -34,7 +34,20 @@ export const elementCount = (page: Page) => read(page, (s) => s.scene.visibleEle
 export const selectedCount = (page: Page) => read(page, (s) => s.controller.selectedIDs.size);
 
 export async function selectTool(page: Page, tool: string): Promise<void> {
-  await page.getByTestId(`tool-${tool}`).click();
+  const btn = page.getByTestId(`tool-${tool}`);
+  // Frame/laser live in the "more tools" dropdown — open it when needed.
+  if (!(await btn.isVisible())) await page.getByTestId("more-tools").click();
+  await btn.click();
+}
+
+/** Insert a generator (note/table/chart/mermaid) from the more-tools dropdown. */
+export async function insertGenerator(
+  page: Page,
+  name: "note" | "table" | "chart" | "mermaid",
+): Promise<void> {
+  const btn = page.getByTestId(`gen-${name}`);
+  if (!(await btn.isVisible())) await page.getByTestId("more-tools").click();
+  await btn.click();
 }
 
 interface Frac {
@@ -70,8 +83,22 @@ export async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `test-results/screens/${name}.png` });
 }
 
+/** Expand the left style panel (collapsed by default) if it isn't already. */
+export async function openPanel(page: Page): Promise<void> {
+  const toggle = page.getByTestId("panel-toggle");
+  try {
+    // The toggle mounts on the app's 40ms revision poll — wait briefly for it.
+    await toggle.waitFor({ state: "visible", timeout: 1500 });
+    await toggle.click();
+  } catch {
+    // Already expanded (or no styling context) — nothing to do.
+  }
+}
+
 /** Wait until the canvas is present and the store is exposed. */
 export async function ready(page: Page): Promise<void> {
   await expect(page.getByTestId("canvas")).toBeVisible();
-  await page.waitForFunction(() => (window as unknown as { __store?: unknown }).__store !== undefined);
+  await page.waitForFunction(
+    () => (window as unknown as { __store?: unknown }).__store !== undefined,
+  );
 }

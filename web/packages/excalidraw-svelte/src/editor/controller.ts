@@ -18,6 +18,7 @@ import {
   hit,
   isBindable,
   isFrame,
+  isPointInElementBounds,
   snap as objectSnap,
   pointForFixedPoint,
 } from "../geometry/index.js";
@@ -41,7 +42,7 @@ import {
   encodeFile,
   makeFile,
 } from "../model/index.js";
-import { measureTextWidth } from "../text-measure.js";
+import { measureTextWidth, wrapTextLines } from "../text-measure.js";
 import { type CurrentItem, defaultCurrentItem, makeBase } from "./current-item.js";
 import { parseMermaid } from "./mermaid.js";
 import type { PointerEvent, PointerType } from "./pointer-event.js";
@@ -84,6 +85,13 @@ export class EditorController {
   snapLinesY: number[] = [];
   /** The line/arrow currently in point-edit mode (`null` when not editing). */
   editingLinearID: string | null = null;
+  /** Bindable element under the pointer while a linear tool/endpoint drag is
+   * active — the overlay's suggested-binding highlight. Ephemeral UI state:
+   * never written to elements, serialized, or broadcast. */
+  suggestedBindingID: string | null = null;
+  /** A click-started arrow/line awaiting its destination click (click-to-
+   * connect); its end follows the cursor via `updatePendingLinear`. */
+  pendingLinearID: string | null = null;
   /** The image currently in crop mode (`null` when not cropping). */
   editingCropID: string | null = null;
 
@@ -170,6 +178,11 @@ export class EditorController {
 
   pointerDown(e: PointerEvent): void {
     this.selectionRect = null;
+    // Click-to-connect: a pending arrow finishes on the next pointer down.
+    if (this.pendingLinearID !== null) {
+      this.finishPendingLinear(e.scenePoint);
+      return;
+    }
     if (this.editingCropID !== null && this.handleCropEditDown(e)) return;
     if (this.editingLinearID !== null && this.handleLinearEditDown(e)) return;
     if (this.activeTool === "eraser") {
@@ -232,8 +245,18 @@ export class EditorController {
         const next = Transform.resize(i.bounds, i.handle, e.scenePoint, e.shift, e.alt);
         this.store.modifyScene((scene) => {
           for (const original of i.originals.values()) {
+            // Bound labels aren't geometrically scaled — rescaleBoundLabels
+            // rescales their font and re-wraps them to the resized container.
+            if (
+              original.type === "text" &&
+              original.containerId !== null &&
+              i.originals.has(original.containerId)
+            ) {
+              continue;
+            }
             scene.replace(Transform.scale(original, i.bounds, next));
           }
+          this.rescaleBoundLabels(scene, i.originals);
           if (this.bindingEnabled) updateBoundArrows(scene, new Set(i.originals.keys()));
         });
         break;
@@ -308,9 +331,11 @@ export class EditorController {
   }
 
   setTool(tool: Tool): void {
+    this.cancelPendingLinear();
     this.activeTool = tool;
     this.exitLinearEdit();
     this.exitCropEdit();
+    this.suggestedBindingID = null;
   }
 
   // MARK: Image cropping
@@ -694,7 +719,10 @@ export class EditorController {
 
   // MARK: Interaction helpers
 
-  private beginCreating(type: string, origin: Point, pressure: number): void {
+  private beginCreating(type: string, rawOrigin: Point, pressure: number): void {
+    // Linear tools start exactly on a shape's anchor placeholder when the
+    // pointer goes down near one (click-to-connect sources).
+    const origin = type === "line" || type === "arrow" ? this.snapToAnchor(rawOrigin) : rawOrigin;
     const base = makeBase(this.currentItem, this.nextID(), this.nextSeed(), origin.x, origin.y);
     let element: ExcalidrawElement;
     switch (type) {
@@ -787,6 +815,13 @@ export class EditorController {
     const el = this.scene.element(id);
     const tiny = (el?.width ?? 0) < MIN_SIZE && (el?.height ?? 0) < MIN_SIZE;
     if (!moved || tiny) {
+      // A click (not a drag) with a linear tool starts click-to-connect: keep
+      // the element pending; its end follows the cursor until the next click.
+      if (el !== undefined && (el.type === "arrow" || el.type === "line")) {
+        this.pendingLinearID = id;
+        this.selectedIDs = new Set(); // no selection chrome on the preview
+        return;
+      }
       this.store.modifyScene((scene) =>
         scene.replaceAll(scene.elements.filter((e) => e.id !== id)),
       );
@@ -798,6 +833,130 @@ export class EditorController {
       this.store.commit();
       if (!this.toolLocked) this.activeTool = "selection";
     }
+  }
+
+  /**
+   * Track the bindable element under `point` for the suggested-binding
+   * highlight. Active while a linear tool (arrow/line) is up or down, or —
+   * with `dragging` — while a linear-edit endpoint is being moved. Pass
+   * `null` to clear. Returns whether the suggestion changed (callers bump
+   * the revision only then, so hover moves don't churn redraws).
+   */
+  updateSuggestedBinding(point: Point | null, dragging = false): boolean {
+    const linearTool = this.activeTool === "arrow" || this.activeTool === "line";
+    const active = point !== null && (linearTool || (dragging && this.editingLinearID !== null));
+    const target = active ? bindableElementAt(point, this.scene.visibleElements, new Set()) : null;
+    const id = target?.id ?? null;
+    if (id === this.suggestedBindingID) return false;
+    this.suggestedBindingID = id;
+    return true;
+  }
+
+  /**
+   * The four anchor placeholders (N/E/S/W side midpoints, rotated with the
+   * shape) where a click-to-connect arrow starts or stops on a bindable shape.
+   */
+  anchorPointsFor(id: string): Point[] {
+    const el = this.scene.element(id);
+    if (el === undefined) return [];
+    const cx = el.x + el.width / 2;
+    const cy = el.y + el.height / 2;
+    const pts = [
+      new Point(cx, el.y),
+      new Point(el.x + el.width, cy),
+      new Point(cx, el.y + el.height),
+      new Point(el.x, cy),
+    ];
+    return el.angle === 0 ? pts : pts.map((p) => p.rotated(new Point(cx, cy), el.angle));
+  }
+
+  /** Snap `point` to the nearest anchor of the bindable shape under it — when
+   * within an anchor's grab radius, or whenever the point lands inside the
+   * shape (anchors are where arrows start/stop; an arrow must not end in the
+   * middle of a shape). Returns the point unchanged otherwise. */
+  private snapToAnchor(point: Point): Point {
+    const target = bindableElementAt(point, this.scene.visibleElements, new Set());
+    if (target === null) return point;
+    const radius = this.handleHitRadius("mouse") * 2;
+    let best: Point | null = null;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const anchor of this.anchorPointsFor(target.id)) {
+      const d = anchor.distance(point);
+      if (d < bestDist) {
+        bestDist = d;
+        best = anchor;
+      }
+    }
+    if (best === null) return point;
+    return bestDist <= radius || isPointInElementBounds(target, point) ? best : point;
+  }
+
+  /** Live-preview a pending (click-started) arrow: its end follows the cursor.
+   * Returns whether anything changed (no history is recorded). */
+  updatePendingLinear(point: Point): boolean {
+    const id = this.pendingLinearID;
+    if (id === null) return false;
+    const el = this.scene.element(id);
+    if (el === undefined || (el.type !== "arrow" && el.type !== "line")) {
+      this.pendingLinearID = null;
+      return false;
+    }
+    const end: LocalPoint = [point.x - el.x, point.y - el.y];
+    this.store.modifyScene((scene) =>
+      scene.replace({
+        ...el,
+        width: Math.abs(end[0]),
+        height: Math.abs(end[1]),
+        points: [[0, 0], end],
+      }),
+    );
+    return true;
+  }
+
+  /** Complete a pending arrow at `point` (anchor-snapped), binding both ends
+   * like a drag-created arrow; a click back on the start discards it. */
+  private finishPendingLinear(point: Point): void {
+    const id = this.pendingLinearID;
+    this.pendingLinearID = null;
+    if (id === null) return;
+    const el = this.scene.element(id);
+    if (el === undefined || (el.type !== "arrow" && el.type !== "line")) return;
+    const snapped = this.snapToAnchor(point);
+    const end: LocalPoint = [snapped.x - el.x, snapped.y - el.y];
+    if (Math.abs(end[0]) < MIN_SIZE && Math.abs(end[1]) < MIN_SIZE) {
+      this.store.modifyScene((scene) =>
+        scene.replaceAll(scene.elements.filter((e) => e.id !== id)),
+      );
+      this.selectedIDs = new Set();
+      return;
+    }
+    this.store.modifyScene((scene) =>
+      scene.replace({
+        ...el,
+        width: Math.abs(end[0]),
+        height: Math.abs(end[1]),
+        points: [[0, 0], end],
+      }),
+    );
+    if (this.bindingEnabled) this.bindArrowEndpoints(id);
+    this.routeElbowArrow(id);
+    this.reassignFrameMembership(new Set([id]));
+    this.store.commit();
+    this.selectedIDs = new Set([id]);
+    if (!this.toolLocked) this.activeTool = "selection";
+    this.suggestedBindingID = null;
+  }
+
+  /** Abandon a pending arrow (Escape / tool switch); nets to no history since
+   * the click-created element was never committed. Returns whether one existed. */
+  cancelPendingLinear(): boolean {
+    const id = this.pendingLinearID;
+    if (id === null) return false;
+    this.pendingLinearID = null;
+    this.store.modifyScene((scene) => scene.replaceAll(scene.elements.filter((e) => e.id !== id)));
+    this.store.commit();
+    this.selectedIDs = new Set();
+    return true;
   }
 
   /** If the element is an arrow, bind its endpoints to nearby bindable shapes. */
@@ -907,6 +1066,7 @@ export class EditorController {
       for (const [handle, position] of Transform.handlePositions(bounds, this.rotationOffset)) {
         if (position.distance(point) <= this.handleHitRadius(e.type)) {
           const originals = this.snapshotSelected();
+          this.addBoundLabels(originals);
           this.interaction =
             handle === "rotation"
               ? {
@@ -1125,13 +1285,42 @@ export class EditorController {
       return;
     }
     this.store.transaction((scene) => {
+      const container = el.containerId !== null ? scene.element(el.containerId) : undefined;
+      if (container !== undefined) {
+        // Bound label: wrap to the container's width; if the wrapped block is
+        // still taller than the container, grow the container around its
+        // centre so the whole label always fits (excalidraw behaviour).
+        const layout = this.labelLayout(container, text, el.fontSize, el.fontFamily, el.lineHeight);
+        const pad = EditorController.labelPadding;
+        if (layout.height > container.height - 2 * pad) {
+          const grown = layout.height + 2 * pad;
+          scene.replace({
+            ...container,
+            y: container.y - (grown - container.height) / 2,
+            height: grown,
+          });
+        }
+        const c = scene.element(container.id)!;
+        scene.replace({
+          ...el,
+          text: layout.text,
+          originalText: text,
+          width: layout.width,
+          height: layout.height,
+          x: c.x + c.width / 2 - layout.width / 2,
+          y: c.y + c.height / 2 - layout.height / 2,
+        });
+        return;
+      }
       const lines = text.split("\n");
+      const width = measureTextWidth(text, el.fontSize, el.fontFamily);
+      const height = lines.length * el.fontSize * el.lineHeight;
       scene.replace({
         ...el,
         text,
         originalText: text,
-        width: measureTextWidth(text, el.fontSize, el.fontFamily),
-        height: lines.length * el.fontSize * el.lineHeight,
+        width,
+        height,
       });
     });
   }
@@ -1291,6 +1480,185 @@ export class EditorController {
       }
     }
     return null;
+  }
+
+  /** Horizontal/vertical inset a bound label keeps from its container's edges. */
+  private static readonly labelPadding = 8;
+
+  /** Wrapped geometry for a container label: `text` with injected newlines,
+   * the wrapped block's size, all fitting the container's inner width. */
+  private labelLayout(
+    container: ExcalidrawElement,
+    raw: string,
+    fontSize: number,
+    fontFamily: number,
+    lineHeight: number,
+  ): { text: string; width: number; height: number } {
+    const maxWidth = Math.max(20, container.width - 2 * EditorController.labelPadding);
+    const lines = wrapTextLines(raw, fontSize, fontFamily, maxWidth);
+    return {
+      text: lines.join("\n"),
+      width: lines.reduce((m, l) => Math.max(m, measureTextWidth(l, fontSize, fontFamily)), 0),
+      height: Math.max(1, lines.length) * fontSize * lineHeight,
+    };
+  }
+
+  /** Add each selected container's bound label to a transform snapshot so
+   * resize can rescale label fonts from gesture-start values. */
+  private addBoundLabels(originals: Originals): void {
+    for (const id of [...originals.keys()]) {
+      const labelID = this.boundTextID(id);
+      const label = labelID !== null ? this.scene.element(labelID) : undefined;
+      if (label !== undefined) originals.set(label.id, label);
+    }
+  }
+
+  /** After a resize replaced the containers, scale each bound label's font by
+   * the container's area change (from gesture-start originals) and re-wrap it
+   * to the new width — resizing a sticky note grows/shrinks its text. */
+  private rescaleBoundLabels(scene: Scene, originals: Originals): void {
+    for (const original of originals.values()) {
+      if (original.type !== "text" || original.containerId === null) continue;
+      const containerOriginal = originals.get(original.containerId);
+      const container = scene.element(original.containerId);
+      const label = scene.element(original.id);
+      if (
+        containerOriginal === undefined ||
+        container === undefined ||
+        label === undefined ||
+        label.type !== "text"
+      ) {
+        continue;
+      }
+      const ratio = Math.sqrt(
+        (container.width * container.height) /
+          Math.max(1, containerOriginal.width * containerOriginal.height),
+      );
+      const fontSize = Math.min(400, Math.max(4, original.fontSize * ratio));
+      const layout = this.labelLayout(
+        container,
+        original.originalText || original.text,
+        fontSize,
+        original.fontFamily,
+        original.lineHeight,
+      );
+      scene.replace({
+        ...label,
+        fontSize,
+        text: layout.text,
+        width: layout.width,
+        height: layout.height,
+        x: container.x + container.width / 2 - layout.width / 2,
+        y: container.y + container.height / 2 - layout.height / 2,
+      });
+    }
+  }
+
+  /** Shape types that can take a double-click label (bindable containers). */
+  private static readonly labelContainerTypes: ReadonlySet<string> = new Set([
+    "rectangle",
+    "diamond",
+    "ellipse",
+  ]);
+
+  /**
+   * The topmost unlocked label-capable container whose rotated bounds contain
+   * `point`. Bounds (not stroke) so a transparent shape's interior counts,
+   * matching excalidraw.com's double-click-to-label hit rule.
+   */
+  labelContainerHit(point: Point): string | null {
+    const visible = this.scene.visibleElements;
+    for (let k = visible.length - 1; k >= 0; k--) {
+      const el = visible[k]!;
+      if (
+        !el.locked &&
+        EditorController.labelContainerTypes.has(el.type) &&
+        isPointInElementBounds(el, point)
+      ) {
+        return el.id;
+      }
+    }
+    return null;
+  }
+
+  /** The topmost unlocked free (unbound) text element whose bounds contain `point`. */
+  unboundTextHit(point: Point): string | null {
+    const visible = this.scene.visibleElements;
+    for (let k = visible.length - 1; k >= 0; k--) {
+      const el = visible[k]!;
+      if (
+        !el.locked &&
+        el.type === "text" &&
+        el.containerId === null &&
+        isPointInElementBounds(el, point)
+      ) {
+        return el.id;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Create an empty text label bound to `containerID` (centred, registered in
+   * the container's `boundElements`) and select the container; returns the new
+   * text id. No history step is recorded — the caller's eventual text commit
+   * (or removal on cancel) seals the change, so a typed label is one undo step
+   * and a cancelled one leaves no history at all.
+   */
+  createBoundLabel(containerID: string): string | null {
+    const container = this.scene.element(containerID);
+    if (container === undefined || this.boundTextID(containerID) !== null) return null;
+    const textID = this.nextID();
+    const text: ExcalidrawElement = {
+      ...makeBase(
+        this.currentItem,
+        textID,
+        this.nextSeed(),
+        container.x + container.width / 2,
+        container.y + container.height / 2,
+      ),
+      type: "text",
+      ...defaultTextProps({
+        fontSize: this.currentItem.fontSize,
+        fontFamily: this.currentItem.fontFamily,
+        textAlign: "center",
+        verticalAlign: "middle",
+        containerId: containerID,
+        autoResize: false,
+      }),
+      backgroundColor: "transparent",
+    };
+    this.store.modifyScene((scene) => {
+      scene.replace({
+        ...container,
+        boundElements: [...(container.boundElements ?? []), { id: textID, type: "text" }],
+      });
+      scene.add(text);
+    });
+    this.selectedIDs = new Set([containerID]);
+    return textID;
+  }
+
+  /**
+   * Remove a never-filled label: delete the text element and unregister it
+   * from its container's `boundElements`. Mirrors `setText`'s empty-unbound
+   * removal (modify + commit, so a create-then-cancel nets to no history).
+   */
+  removeBoundLabel(textID: string): void {
+    const text = this.scene.element(textID);
+    if (text === undefined || text.type !== "text" || text.containerId === null) return;
+    const container = this.scene.element(text.containerId);
+    this.store.modifyScene((scene) => {
+      if (container !== undefined) {
+        scene.replace({
+          ...container,
+          boundElements: (container.boundElements ?? []).filter((b) => b.id !== textID),
+        });
+      }
+      scene.replaceAll(scene.elements.filter((e) => e.id !== textID));
+    });
+    this.store.commit();
+    this.selectedIDs.delete(textID);
   }
 
   /** Create a `rows × cols` table with its top-left at `point`, grouped and selected. */

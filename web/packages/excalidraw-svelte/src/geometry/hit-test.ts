@@ -113,6 +113,15 @@ export function isPointOnOutline(el: ExcalidrawElement, point: Point, threshold:
   return distanceToElement(el, point) <= Math.max(threshold, PRECISION);
 }
 
+/** Whether `point` lies within the element's rotated bounding box (`hitElementBoundingBox`). */
+export function isPointInElementBounds(
+  el: ExcalidrawElement,
+  point: Point,
+  tolerance = 0,
+): boolean {
+  return isPointInRotatedBounds(point, bounds(el, true), el.angle, tolerance);
+}
+
 /** Whether `point` (scene coords) hits the element within `threshold` (`hitElementItself`). */
 export function hit(el: ExcalidrawElement, point: Point, threshold: number): boolean {
   const nonRotated = bounds(el, true);

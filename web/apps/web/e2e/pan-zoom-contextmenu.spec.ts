@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { clickCanvas, drag, elementCount, read, ready, selectedCount, selectTool } from "./helpers.js";
+import {
+  clickCanvas,
+  drag,
+  elementCount,
+  read,
+  ready,
+  selectTool,
+  selectedCount,
+} from "./helpers.js";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -7,7 +15,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 /** Centre of the canvas in client coordinates. */
-async function canvasCentre(page: import("@playwright/test").Page): Promise<{ x: number; y: number }> {
+async function canvasCentre(
+  page: import("@playwright/test").Page,
+): Promise<{ x: number; y: number }> {
   const box = await page.getByTestId("canvas").boundingBox();
   if (box === null) throw new Error("canvas not found");
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -39,13 +49,16 @@ test("the middle mouse button pans the canvas", async ({ page }) => {
   expect(await read(page, (s) => s.viewport.scrollY)).toBeGreaterThan(30);
 });
 
-test("right-click opens a context menu to group, ungroup, and delete a selection", async ({ page }) => {
+test("right-click opens a context menu to group, ungroup, and delete a selection", async ({
+  page,
+}) => {
   await selectTool(page, "rectangle");
   await drag(page, { x: 0.2, y: 0.3 }, { x: 0.4, y: 0.5 });
   await selectTool(page, "rectangle");
   await drag(page, { x: 0.55, y: 0.3 }, { x: 0.75, y: 0.5 });
   await selectTool(page, "selection");
-  await drag(page, { x: 0.1, y: 0.15 }, { x: 0.9, y: 0.7 });
+  // Marquee from empty space above the floating style panel (left island).
+  await drag(page, { x: 0.1, y: 0.08 }, { x: 0.9, y: 0.7 });
   expect(await selectedCount(page)).toBe(2);
 
   const menu = page.getByTestId("context-menu");
@@ -70,7 +83,9 @@ test("right-click opens a context menu to group, ungroup, and delete a selection
   expect(await elementCount(page)).toBe(0);
 });
 
-test("a text element's box matches its rendered glyphs (not a monospace guess)", async ({ page }) => {
+test("a text element's box matches its rendered glyphs (not a monospace guess)", async ({
+  page,
+}) => {
   await selectTool(page, "text");
   await clickCanvas(page, { x: 0.3, y: 0.4 });
   const editor = page.getByTestId("text-editor");

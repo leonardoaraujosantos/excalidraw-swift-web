@@ -1,3 +1,14 @@
-:root { font-family: system-ui, sans-serif; }
-* { box-sizing: border-box; }
-html, body, #app { margin: 0; height: 100%; width: 100%; overflow: hidden; }
+:root {
+  font-family: system-ui, sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}

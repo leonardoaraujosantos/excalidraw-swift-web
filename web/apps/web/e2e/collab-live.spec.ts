@@ -20,7 +20,8 @@ test("browser shares one room with the iOS app", async ({ page }) => {
   await page.goto(`/?relay=${encodeURIComponent(RELAY!)}&room=${ROOM}&name=web`);
   await ready(page);
   await page.waitForFunction(() => {
-    const store = (window as unknown as { __store?: { collab?: { you: string | null } | null } }).__store;
+    const store = (window as unknown as { __store?: { collab?: { you: string | null } | null } })
+      .__store;
     return store?.collab?.you != null;
   });
 
@@ -35,10 +36,10 @@ test("browser shares one room with the iOS app", async ({ page }) => {
 
   // Wait until the iPad's element arrives (id namespaced by its peer id "ipad-").
   await expect
-    .poll(
-      () => read(page, (s) => s.scene.visibleElements.some((e) => e.id.startsWith("ipad"))),
-      { timeout: 660_000, intervals: [1000] },
-    )
+    .poll(() => read(page, (s) => s.scene.visibleElements.some((e) => e.id.startsWith("ipad"))), {
+      timeout: 660_000,
+      intervals: [1000],
+    })
     .toBe(true);
 
   // Both peers' elements are present; a peer (the iPad) is in the roster.
