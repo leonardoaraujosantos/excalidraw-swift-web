@@ -387,6 +387,87 @@ function minimalPng(): Uint8Array {
   ]);
 }
 
+describe("smart canvas", () => {
+  function drawRect(store: EditorStore, x = 100, y = 100) {
+    store.selectTool("rectangle");
+    store.pointer("down", new Point(x, y));
+    store.pointer("move", new Point(x + 120, y + 90));
+    store.pointer("up", new Point(x + 120, y + 90));
+  }
+
+  it("quick-create spawns a connected node and gates on the selection", () => {
+    const store = new EditorStore();
+    expect(store.canQuickCreate).toBe(false); // nothing selected
+    drawRect(store);
+    expect(store.canQuickCreate).toBe(true);
+
+    store.addFlowchartNode("right");
+    const rects = store.scene.visibleElements.filter((e) => e.type === "rectangle");
+    const arrow = store.scene.visibleElements.find((e) => e.type === "arrow")!;
+    expect(rects).toHaveLength(2);
+    expect(rects[1]!.x).toBeGreaterThan(rects[0]!.x); // spawned to the right
+    expect(arrow.startBinding).not.toBeNull();
+    expect(arrow.endBinding).not.toBeNull();
+
+    // A linear selection can't quick-create.
+    store.selectTool("selection");
+    store.controller.selectedIDs = new Set([arrow.id]);
+    expect(store.canQuickCreate).toBe(false);
+  });
+
+  it("contentOffscreen flips when the content is scrolled out of view", () => {
+    const store = new EditorStore();
+    store.canvasWidth = 800;
+    store.canvasHeight = 600;
+    expect(store.contentOffscreen).toBe(false); // empty scene
+    drawRect(store, 100, 100);
+    expect(store.contentOffscreen).toBe(false);
+
+    store.panZoom(-5000, -5000, 1); // scroll far away
+    expect(store.contentOffscreen).toBe(true);
+
+    store.scrollToContent();
+    expect(store.contentOffscreen).toBe(false);
+  });
+
+  it("grid and snap toggles flip host state", () => {
+    const store = new EditorStore();
+    expect(store.gridEnabled).toBe(false);
+    store.toggleGrid();
+    expect(store.gridEnabled).toBe(true);
+
+    expect(store.snapEnabled).toBe(false);
+    store.toggleSnap();
+    expect(store.snapEnabled).toBe(true);
+  });
+
+  it("recognizeSelectedStroke snaps a rough rectangle sketch to a rectangle", () => {
+    const store = new EditorStore();
+    store.selectTool("freedraw");
+    // Trace a rough closed rectangle.
+    const path: [number, number][] = [
+      [100, 100],
+      [200, 102],
+      [298, 100],
+      [300, 200],
+      [302, 298],
+      [200, 300],
+      [102, 298],
+      [100, 200],
+      [100, 102],
+    ];
+    store.pointer("down", new Point(path[0]![0], path[0]![1]));
+    for (const [x, y] of path.slice(1)) store.pointer("move", new Point(x, y));
+    store.pointer("up", new Point(path.at(-1)![0], path.at(-1)![1]));
+    const stroke = store.scene.visibleElements.find((e) => e.type === "freedraw")!;
+    store.controller.selectedIDs = new Set([stroke.id]);
+
+    store.recognizeSelectedStroke();
+    expect(store.scene.visibleElements.some((e) => e.type === "rectangle")).toBe(true);
+    expect(store.scene.visibleElements.some((e) => e.type === "freedraw")).toBe(false);
+  });
+});
+
 describe("clipboard, styles, and frames", () => {
   function drawRect(store: EditorStore, x = 100, y = 100) {
     store.selectTool("rectangle");

@@ -92,10 +92,12 @@ landed earlier with Phase 1.
 
 ## Phase 4 — Smart features & polish (P3)
 
-1. **Flowchart quick-create** — hover quick-arrow button and Cmd/Ctrl+arrow
-   node spawning (`smart-features` spec covers the iOS behavior).
-2. **Canvas helpers** — zoom-to-fit, scroll-back-to-content pill, grid/snap
-   toggles, zen mode, command palette (`platform-ux` spec).
+1. **Flowchart quick-create** — ✅ implemented (`web-smart-canvas`, 2026-07-11):
+   Cmd/Ctrl+arrow spawning and hover quick-arrow buttons.
+2. **Canvas helpers** — ✅ implemented (`web-smart-canvas`): zoom-to-fit,
+   scroll-back-to-content pill, grid + snap toggles (the grid was declared in
+   `RenderOptions` but never drawn — now implemented), zen mode, command
+   palette, plus freehand shape recognition ("Snap to shape").
 3. **Library panel** — `.excalidrawlib` import/insert (`file-format` spec).
 4. **Share/collab UI** — a dialog around the existing relay/Yjs collab so
    rooms aren't URL-parameter-only.

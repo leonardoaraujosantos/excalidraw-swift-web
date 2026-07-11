@@ -22,6 +22,7 @@ import {
 import type { Peer } from "../protocol/index.js";
 import { reconcileElements } from "../protocol/index.js";
 import {
+  type OverlayColors,
   type RenderContext,
   type Theme,
   Viewport,
@@ -104,6 +105,8 @@ export class EditorStore {
   /** Remote cursors supplied by an external presence source (e.g. the Yjs
    * awareness bridge); merged with the LWW `remoteCursors` when rendering. */
   externalCursors: { color: string; name: string; x: number; y: number }[] = [];
+  /** Interaction-overlay colour overrides (host/embedding configuration). */
+  overlayColors: OverlayColors | undefined = undefined;
 
   constructor(scene: Scene = new Scene(), viewport: Viewport = new Viewport()) {
     this.controller = new EditorController(scene);
@@ -691,6 +694,46 @@ export class EditorStore {
     this.bump();
     return ok;
   }
+  // MARK: Smart canvas (quick-create guard, grid/snap, content helpers)
+
+  /** Whether flowchart quick-create applies: exactly one bindable shape. */
+  get canQuickCreate(): boolean {
+    const selected = this.controller.selectedElements;
+    if (selected.length !== 1) return false;
+    const el = selected[0]!;
+    return el.type === "rectangle" || el.type === "diamond" || el.type === "ellipse";
+  }
+
+  /** Object/gap snapping while dragging (host toggle). */
+  get snapEnabled(): boolean {
+    return this.controller.snapEnabled;
+  }
+  /** Background grid (host toggle; the renderer takes the size). */
+  gridEnabled = false;
+  toggleGrid(): void {
+    this.gridEnabled = !this.gridEnabled;
+    this.bump();
+  }
+
+  /** Whether the scene has content and none of it is inside the viewport. */
+  get contentOffscreen(): boolean {
+    const box = commonBounds(this.scene.visibleElements);
+    if (box === null) return false;
+    const topLeft = this.viewport.viewToScene(new Point(0, 0));
+    const bottomRight = this.viewport.viewToScene(new Point(this.canvasWidth, this.canvasHeight));
+    return (
+      box.maxX < topLeft.x ||
+      box.minX > bottomRight.x ||
+      box.maxY < topLeft.y ||
+      box.minY > bottomRight.y
+    );
+  }
+
+  /** Bring the content back into view (the scroll-back pill). */
+  scrollToContent(): void {
+    this.zoomToFit();
+  }
+
   addFlowchartNode(direction: FlowchartDirection): void {
     const id = [...this.controller.selectedIDs][0];
     if (id !== undefined) this.controller.addFlowchartNode(id, direction);
@@ -1001,6 +1044,7 @@ export class EditorStore {
       width,
       height,
       theme: this.theme,
+      gridSize: this.gridEnabled ? 20 : undefined,
       images,
     });
   }
@@ -1050,6 +1094,7 @@ export class EditorStore {
       viewport: this.viewport,
       width,
       height,
+      colors: this.overlayColors,
       suggestedOutline: this.suggestedOutline(),
       suggestedAnchors:
         c.suggestedBindingID !== null ? c.anchorPointsFor(c.suggestedBindingID) : [],
