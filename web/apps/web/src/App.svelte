@@ -1,5 +1,6 @@
 <script lang="ts">
 import { EditorStore, browserSocket, reconnectingSocket } from "@cyberdynecorp/excalidraw-svelte";
+import { Point } from "@cyberdynecorp/excalidraw-svelte/math";
 import type { Tool } from "@cyberdynecorp/excalidraw-svelte/editor";
 import { FontFamily } from "@cyberdynecorp/excalidraw-svelte/model";
 import type { Arrowhead, FillStyle, StrokeStyle, TextAlign } from "@cyberdynecorp/excalidraw-svelte/model";
@@ -184,11 +185,26 @@ let exportOpts = $state<ExportImageOptions & { format: "png" | "svg" }>({
 
 // Right-click context menu over the canvas (scene coords not needed: it acts
 // on the current selection). `null` when hidden.
-let menu = $state<{ x: number; y: number } | null>(null);
+let menu = $state<{ x: number; y: number; onElement: boolean } | null>(null);
 function openMenu(e: MouseEvent): void {
   e.preventDefault();
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  menu = { x: e.clientX - r.left, y: e.clientY - r.top };
+  const at = new Point(e.clientX - r.left, e.clientY - r.top);
+  // Excalidraw keys the menu on what was right-clicked, not merely on whether
+  // something is selected: hitting an element (selecting it if it wasn't), or
+  // clicking inside the current selection's bounds, gives the element menu —
+  // clicking empty canvas gives the short one.
+  const hit = store.elementAtView(at);
+  if (hit !== null && !store.controller.selectedIDs.has(hit)) store.selectOnly(hit);
+  const scene = store.viewport.viewToScene(at);
+  const bounds = store.controller.selectionBounds;
+  const inSelection =
+    bounds !== null &&
+    scene.x >= bounds.minX &&
+    scene.x <= bounds.maxX &&
+    scene.y >= bounds.minY &&
+    scene.y <= bounds.maxY;
+  menu = { x: at.x, y: at.y, onElement: hit !== null || inSelection };
 }
 function closeMenu(): void {
   menu = null;
@@ -299,6 +315,122 @@ function downloadJson(): void {
   a.href = URL.createObjectURL(blob);
   a.download = "drawing.excalidraw";
   a.click();
+}
+
+// Clipboard bridge: our payload is the .excalidraw file format, so copy/paste
+// interoperates with excalidraw.com. Paste order: our payload → image → text.
+const EXCALIDRAW_MIME = "text/plain";
+
+function editorHasFocus(): boolean {
+  const tag = (document.activeElement?.tagName ?? "").toUpperCase();
+  return store.editingText !== null || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function onCopy(e: ClipboardEvent): void {
+  if (editorHasFocus()) return;
+  const data = store.copySelection();
+  if (data === null) return;
+  e.preventDefault();
+  e.clipboardData?.setData(EXCALIDRAW_MIME, data);
+}
+
+function onCut(e: ClipboardEvent): void {
+  if (editorHasFocus()) return;
+  const data = store.cutSelection();
+  if (data === null) return;
+  e.preventDefault();
+  e.clipboardData?.setData(EXCALIDRAW_MIME, data);
+}
+
+function looksLikeScene(text: string): boolean {
+  try {
+    const parsed = JSON.parse(text) as { type?: string; elements?: unknown };
+    return parsed.type === "excalidraw" && Array.isArray(parsed.elements);
+  } catch {
+    return false;
+  }
+}
+
+function pastePayload(text: string, file: File | null): void {
+  if (text !== "" && looksLikeScene(text)) {
+    store.pasteJSON(text);
+    return;
+  }
+  if (file !== null) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataURL = reader.result as string;
+      const img = new Image();
+      img.onload = () => store.pasteImage(dataURL, file.type, img.naturalWidth, img.naturalHeight);
+      img.src = dataURL;
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+  if (text !== "") store.pasteText(text);
+}
+
+function onPaste(e: ClipboardEvent): void {
+  if (editorHasFocus()) return;
+  const text = e.clipboardData?.getData("text/plain") ?? "";
+  const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/")) ?? null;
+  if (text === "" && file === null) return;
+  e.preventDefault();
+  pastePayload(text, file);
+}
+
+/** Menu-driven paste (no clipboard event): read the async clipboard. */
+async function pasteFromClipboard(): Promise<void> {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text !== "") pastePayload(text, null);
+  } catch {
+    /* clipboard read denied — the ⌘V paste event path still works */
+  }
+}
+
+async function copyAsPng(): Promise<void> {
+  const bytes = await exportPngBytes(store, {
+    scale: 2,
+    background: true,
+    selectionOnly: view.selectedCount > 0,
+    embed: true,
+  });
+  if (bytes === null) return;
+  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/png" });
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+  } catch {
+    download("drawing.png", bytes, "image/png"); // fall back to a download
+  }
+}
+
+async function copyAsSvg(): Promise<void> {
+  const svg = exportSvgString(store, {
+    background: true,
+    selectionOnly: view.selectedCount > 0,
+  });
+  if (svg === null) return;
+  try {
+    await navigator.clipboard.writeText(svg);
+  } catch {
+    download("drawing.svg", svg, "image/svg+xml");
+  }
+}
+
+async function copyToClipboard(): Promise<void> {
+  const data = store.copySelection();
+  if (data === null) return;
+  try {
+    await navigator.clipboard.writeText(data);
+  } catch {
+    /* denied — ⌘C still works via the copy event */
+  }
+}
+
+function addLink(): void {
+  const url = window.prompt("Link URL");
+  if (url !== null) store.setLink(url.trim() === "" ? null : url.trim());
 }
 
 // The welcome overlay shows over an empty canvas with the selection tool.
@@ -434,7 +566,7 @@ function onKeydown(e: KeyboardEvent): void {
 }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} oncopy={onCopy} oncut={onCut} onpaste={onPaste} />
 
 <div class="app" data-theme={view.theme} data-rev={rev}>
   <main class="stage" oncontextmenu={openMenu}>
@@ -504,16 +636,40 @@ function onKeydown(e: KeyboardEvent): void {
           closeMenu();
         }}
       ></button>
-      <div class="island context-menu" data-testid="context-menu" style="left:{menu.x}px;top:{menu.y}px">
-        <button data-testid="ctx-duplicate" disabled={view.selectedCount === 0} onclick={() => runMenu(() => store.duplicate())}>Duplicate</button>
-        <button data-testid="ctx-group" disabled={!view.canGroup} onclick={() => runMenu(() => store.group())}>Group</button>
-        <button data-testid="ctx-ungroup" disabled={!view.canUngroup} onclick={() => runMenu(() => store.ungroup())}>Ungroup</button>
-        <div class="ctx-sep"></div>
-        <button data-testid="ctx-front" disabled={view.selectedCount === 0} onclick={() => runMenu(() => store.reorder("front"))}>Bring to front</button>
-        <button data-testid="ctx-back" disabled={view.selectedCount === 0} onclick={() => runMenu(() => store.reorder("back"))}>Send to back</button>
-        <div class="ctx-sep"></div>
-        <button data-testid="ctx-selectall" onclick={() => runMenu(() => store.selectAll())}>Select all</button>
-        <button data-testid="ctx-delete" disabled={view.selectedCount === 0} onclick={() => runMenu(() => store.deleteSelected())}>Delete</button>
+      <div class="island context-menu" data-testid="context-menu" style="left:{menu.x}px;top:{menu.y}px;max-height:calc(100% - {menu.y}px - 16px)">
+        {#if !menu.onElement}
+          <button data-testid="ctx-paste" onclick={() => runMenu(() => void pasteFromClipboard())}>Paste<kbd>⌘V</kbd></button>
+          <button data-testid="ctx-selectall" onclick={() => runMenu(() => store.selectAll())}>Select all<kbd>⌘A</kbd></button>
+          <button data-testid="ctx-zoomfit" onclick={() => runMenu(() => store.zoomToFit())}>Zoom to fit</button>
+        {:else}
+          <button data-testid="ctx-cut" onclick={() => runMenu(() => { void copyToClipboard(); store.cutSelection(); })}>Cut<kbd>⌘X</kbd></button>
+          <button data-testid="ctx-copy" onclick={() => runMenu(() => void copyToClipboard())}>Copy<kbd>⌘C</kbd></button>
+          <button data-testid="ctx-paste" onclick={() => runMenu(() => void pasteFromClipboard())}>Paste<kbd>⌘V</kbd></button>
+          <div class="ctx-sep"></div>
+          <button data-testid="ctx-copy-png" onclick={() => runMenu(() => void copyAsPng())}>Copy to clipboard as PNG</button>
+          <button data-testid="ctx-copy-svg" onclick={() => runMenu(() => void copyAsSvg())}>Copy as SVG</button>
+          <div class="ctx-sep"></div>
+          <button data-testid="ctx-copy-styles" onclick={() => runMenu(() => store.copyStyles())}>Copy styles</button>
+          <button data-testid="ctx-paste-styles" disabled={!store.hasCopiedStyles} onclick={() => runMenu(() => store.pasteStyles())}>Paste styles</button>
+          <button data-testid="ctx-wrap-frame" onclick={() => runMenu(() => store.wrapSelectionInFrame())}>Wrap selection in frame</button>
+          <div class="ctx-sep"></div>
+          <button data-testid="ctx-duplicate" onclick={() => runMenu(() => store.duplicate())}>Duplicate<kbd>⌘D</kbd></button>
+          <button data-testid="ctx-group" disabled={!view.canGroup} onclick={() => runMenu(() => store.group())}>Group</button>
+          <button data-testid="ctx-ungroup" disabled={!view.canUngroup} onclick={() => runMenu(() => store.ungroup())}>Ungroup</button>
+          <div class="ctx-sep"></div>
+          <button data-testid="ctx-backward" onclick={() => runMenu(() => store.reorder("backward"))}>Send backward</button>
+          <button data-testid="ctx-forward" onclick={() => runMenu(() => store.reorder("forward"))}>Bring forward</button>
+          <button data-testid="ctx-back" onclick={() => runMenu(() => store.reorder("back"))}>Send to back</button>
+          <button data-testid="ctx-front" onclick={() => runMenu(() => store.reorder("front"))}>Bring to front</button>
+          <div class="ctx-sep"></div>
+          <button data-testid="ctx-flip-h" onclick={() => runMenu(() => store.flip(true))}>Flip horizontal</button>
+          <button data-testid="ctx-flip-v" onclick={() => runMenu(() => store.flip(false))}>Flip vertical</button>
+          <button data-testid="ctx-link" onclick={() => runMenu(addLink)}>Add link</button>
+          <button data-testid="ctx-lock" onclick={() => runMenu(() => store.setLocked(true))}>Lock</button>
+          <div class="ctx-sep"></div>
+          <button data-testid="ctx-selectall" onclick={() => runMenu(() => store.selectAll())}>Select all<kbd>⌘A</kbd></button>
+          <button data-testid="ctx-delete" onclick={() => runMenu(() => store.deleteSelected())}>Delete<kbd>Del</kbd></button>
+        {/if}
       </div>
     {/if}
   </main>
@@ -1384,8 +1540,9 @@ function onKeydown(e: KeyboardEvent): void {
     z-index: 21;
     display: flex;
     flex-direction: column;
-    min-width: 160px;
+    min-width: 190px;
     padding: 4px;
+    overflow-y: auto;
   }
   .context-menu button {
     border: none;
@@ -1400,4 +1557,10 @@ function onKeydown(e: KeyboardEvent): void {
   .context-menu button:not(:disabled):hover { background: var(--hover); }
   .context-menu button:disabled { opacity: 0.4; cursor: default; }
   .ctx-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+  .context-menu button { display: flex; align-items: center; gap: 16px; }
+  .context-menu kbd {
+    margin-left: auto;
+    font: 11px ui-monospace, Menlo, monospace;
+    color: var(--muted);
+  }
 </style>

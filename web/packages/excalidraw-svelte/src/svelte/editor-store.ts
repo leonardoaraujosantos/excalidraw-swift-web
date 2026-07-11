@@ -1,12 +1,13 @@
 import {
   EditorController,
+  type ElementStyle,
   type FlowchartDirection,
   type PointerPhase,
   type PointerType,
   type Tool,
   pointerEvent,
 } from "../editor/index.js";
-import { unrotatedOutline } from "../geometry/index.js";
+import { commonBounds, unrotatedOutline } from "../geometry/index.js";
 import { Point } from "../math/index.js";
 import {
   type Arrowhead,
@@ -228,6 +229,7 @@ export class EditorStore {
    * Notifies both the LWW session and any external presence adapter. */
   trackPointer(viewPoint: Point): void {
     const p = this.viewport.viewToScene(viewPoint);
+    this.lastScenePoint = p;
     for (const listener of this.cursorListeners) listener(p);
     if (this.collab !== null) this.collab.sendPointer({ x: p.x, y: p.y });
     // Hovering with a linear tool suggests the bindable shape under the cursor,
@@ -235,6 +237,20 @@ export class EditorStore {
     const suggested = this.controller.updateSuggestedBinding(p);
     const pending = this.controller.updatePendingLinear(p);
     if (suggested || pending) this.bump();
+  }
+
+  /**
+   * The element under a view point, if any — the host uses this to choose the
+   * element vs empty-canvas context menu (and to select what was right-clicked).
+   */
+  elementAtView(viewPoint: Point): string | null {
+    return this.controller.hitElement(this.viewport.viewToScene(viewPoint));
+  }
+
+  /** Select a single element by id (right-click selects what it targets). */
+  selectOnly(id: string): void {
+    this.controller.selectedIDs = new Set([id]);
+    this.bump();
   }
 
   /** Abandon a click-started arrow awaiting its destination (Escape). */
@@ -280,6 +296,24 @@ export class EditorStore {
   zoomOut(): void {
     this.zoomTo(this.viewport.zoom / 1.2);
   }
+  /** Fit all content in the viewport (Shift+1 in excalidraw). */
+  zoomToFit(margin = 40): void {
+    const box = commonBounds(this.scene.visibleElements);
+    if (box === null) return;
+    const zoom = clampZoom(
+      Math.min(
+        (this.canvasWidth - 2 * margin) / Math.max(box.width, 1),
+        (this.canvasHeight - 2 * margin) / Math.max(box.height, 1),
+        1,
+      ),
+    );
+    this.viewport.zoom = zoom;
+    this.controller.zoom = zoom;
+    this.viewport.scrollX = this.canvasWidth / (2 * zoom) - (box.minX + box.maxX) / 2;
+    this.viewport.scrollY = this.canvasHeight / (2 * zoom) - (box.minY + box.maxY) / 2;
+    this.bump();
+  }
+
   resetZoom(): void {
     this.zoomTo(1);
   }
@@ -410,6 +444,100 @@ export class EditorStore {
     this.bump();
   }
 
+  // MARK: Clipboard & styles
+
+  /** Last pointer position in scene coords — where pasted content lands. */
+  private lastScenePoint: Point | null = null;
+  /** Style captured by `copyStyles`, applied by `pasteStyles`. */
+  private copiedStyle: ElementStyle | null = null;
+
+  get hasCopiedStyles(): boolean {
+    return this.copiedStyle !== null;
+  }
+
+  /** Serialize the selection as an `.excalidraw` payload (null when empty). */
+  copySelection(): string | null {
+    return this.controller.copyData();
+  }
+
+  /** Copy the selection, then delete it — one undo step. */
+  cutSelection(): string | null {
+    const data = this.controller.copyData();
+    if (data === null) return null;
+    this.controller.deleteSelected();
+    this.bump();
+    return data;
+  }
+
+  /** Paste an `.excalidraw` payload, centred at `at` (or the last cursor). */
+  pasteJSON(json: string, at: Point | null = null): void {
+    const before = new Set(this.scene.elements.map((e) => e.id));
+    this.controller.paste(json);
+    const target = at ?? this.lastScenePoint;
+    if (target !== null) this.centreNewElements(before, target);
+    this.bump();
+  }
+
+  /** Insert an image (from the clipboard) at `at` or the last cursor. */
+  pasteImage(
+    dataURL: string,
+    mime: string,
+    width: number,
+    height: number,
+    at: Point | null = null,
+  ): void {
+    const before = new Set(this.scene.elements.map((e) => e.id));
+    // `insertImage` scales the bitmap and centres it in the viewport; re-centre
+    // the result on the paste target.
+    this.insertImage(dataURL, mime, width, height);
+    const target = at ?? this.lastScenePoint;
+    if (target !== null) this.centreNewElements(before, target);
+    this.bump();
+  }
+
+  /** Insert pasted plain text as a text element at `at` or the last cursor. */
+  pasteText(text: string, at: Point | null = null): void {
+    const target = at ?? this.lastScenePoint ?? new Point(0, 0);
+    const id = this.controller.createText(target);
+    this.controller.setText(id, text);
+    this.bump();
+  }
+
+  /** Move elements added since `before` so their bounds centre lands on `at`. */
+  private centreNewElements(before: Set<string>, at: Point): void {
+    const added = this.scene.elements.filter((e) => !before.has(e.id));
+    if (added.length === 0) return;
+    const box = commonBounds(added);
+    if (box === null) return;
+    const dx = at.x - (box.minX + box.maxX) / 2;
+    const dy = at.y - (box.minY + box.maxY) / 2;
+    this.controller.updateSelected((el) => {
+      el.x += dx;
+      el.y += dy;
+    });
+  }
+
+  /** Capture the first selected element's style. */
+  copyStyles(): boolean {
+    const first = this.controller.selectedElements[0];
+    if (first === undefined) return false;
+    this.copiedStyle = this.controller.styleOf(first.id);
+    return this.copiedStyle !== null;
+  }
+
+  /** Apply the captured style to the selection (one undo step). */
+  pasteStyles(): void {
+    if (this.copiedStyle === null) return;
+    this.controller.applyStyle(this.copiedStyle);
+    this.bump();
+  }
+
+  /** Wrap the selection in a frame that adopts it. */
+  wrapSelectionInFrame(): void {
+    this.controller.wrapSelectionInFrame();
+    this.bump();
+  }
+
   /** Clear the whole scene as one undoable step. */
   resetScene(): void {
     this.controller.setTool("selection");
@@ -464,6 +592,11 @@ export class EditorStore {
   }
   flip(horizontal: boolean): void {
     this.controller.flip(horizontal);
+    this.bump();
+  }
+  /** Attach (or clear, with `null`) a hyperlink on the selection. */
+  setLink(url: string | null): void {
+    this.controller.setLink(url);
     this.bump();
   }
   setLocked(locked: boolean): void {

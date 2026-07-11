@@ -56,7 +56,7 @@ bindings work for arrows). This was host/controller wiring.
 4. **Typing guard.** Single-letter tool shortcuts must never fire while a text
    editor is open/focused; audit all `onKeydown` paths in `App.svelte`.
 
-## Phase 2 — Editing surface (P1)
+## Phase 2 — Editing surface (P1) — ✅ complete
 
 1. **Dark-theme element inversion** — ✅ done early, shipped with Phase 1
    (`themeColor` paint-time mapping in the renderer).
@@ -66,9 +66,11 @@ bindings work for arrows). This was host/controller wiring.
    opacity, font family/size/align, arrow type (straight/curved/elbow) +
    arrowheads; sections shown per selection/tool, controls reflect the
    selection.
-3. **Context menu parity** — cut/copy/paste, copy as PNG/SVG, copy/paste
-   styles, flip H/V, 4-step z-order (fwd/back/front/bottom), lock, add link,
-   wrap in frame; distinct empty-canvas menu (paste, select all, zoom to fit).
+3. **Context menu parity** — ✅ implemented via the
+   `web-context-menu-clipboard` change (2026-07-11): system-clipboard
+   cut/copy/paste (incl. external images and text), copy as PNG/SVG,
+   copy/paste styles, wrap in frame, flip H/V, 4-step z-order, lock, add
+   link; distinct empty-canvas menu (paste, select all, zoom to fit).
 
 ## Phase 3 — App chrome & flows (P2) — ✅ implemented
 

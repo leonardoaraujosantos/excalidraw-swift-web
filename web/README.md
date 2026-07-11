@@ -399,3 +399,15 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     screen** on an empty canvas, and a **help overlay** (`?`) with the shortcut
     map. The renderer gained an export-only background override
     (`RenderOptions.background`), paint-time only.
+  - **Context menu & clipboard (Phase 2 completion, `web-context-menu-clipboard`):**
+    system-clipboard **cut/copy/paste** (⌘X/⌘C/⌘V and menu) carrying the
+    `.excalidraw` payload — so copy/paste interoperates with excalidraw.com —
+    plus pasting **external images and plain text**, landing at the cursor.
+    **Copy to clipboard as PNG / as SVG**, **copy & paste styles**, and **wrap
+    selection in frame**. The context menu now mirrors excalidraw: the element
+    menu carries the full command set (clipboard, styles, frame, duplicate,
+    group/ungroup, 4-step z-order, flip H/V, add link, lock, delete) while
+    empty canvas gets the short one (paste, select all, zoom to fit) — keyed on
+    what was right-clicked, not merely on the selection. New core APIs:
+    `styleOf`/`applyStyle`, `wrapSelectionInFrame`, `hitElement`, and store
+    clipboard passthroughs; `zoomToFit` landed too.
