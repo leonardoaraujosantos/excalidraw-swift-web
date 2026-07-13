@@ -81,6 +81,7 @@ The whole editor ships as a Svelte 5 component — you don't have to build any U
 | `gridMode` / `zenMode` | `boolean` | Host-controlled grid and zen mode |
 | `uiOptions` | `UIOptions` | Hide or narrow any piece of chrome (below) |
 | `overlayColors` | `OverlayColors` | Selection accent, binding highlight, snap guides, handle fill |
+| `collab` | `{ start(room), link(room) }` | Transport for the share dialog; omit it and the dialog is hidden |
 | `onReady` | `(store) => void` | Receives the live `EditorStore` once, on mount |
 | `onChange` | `(scene) => void` | Fires after every committed edit |
 
@@ -103,7 +104,7 @@ Everything is on by default. Pass `false` to drop a whole section, or an object 
 />
 ```
 
-Sections: `toolbar` (`tools`, `lock`, `image`, `more`), `panel`, `menu` (`open`, `save`, `export`, `reset`, `theme`, `help`), `contextMenu` (`clipboard`, `copyAsImage`, `styles`, `frame`, `table`, `shapeRecognition`, `duplicate`, `grouping`, `zOrder`, `flip`, `link`, `lock`, `deletion`), `palette`, `welcome`, `help`, `zoomIsland`, `undoIsland`, `viewIsland`, `quickArrows`, `generators` (`note`, `table`, `chart`, `mermaid`), `quickActions`.
+Sections: `toolbar` (`tools`, `lock`, `image`, `more`), `panel`, `library`, `share`, `menu` (`open`, `save`, `export`, `reset`, `theme`, `help`), `contextMenu` (`clipboard`, `copyAsImage`, `styles`, `frame`, `table`, `shapeRecognition`, `duplicate`, `grouping`, `zOrder`, `flip`, `link`, `lock`, `deletion`), `palette`, `welcome`, `help`, `zoomIsland`, `undoIsland`, `viewIsland`, `quickArrows`, `generators` (`note`, `table`, `chart`, `mermaid`), `quickActions`.
 
 **Hiding chrome never removes capability** — a hidden export button doesn't stop you calling `store.exportSvg()` from `onReady`.
 
@@ -172,7 +173,7 @@ pnpm build:libs              # tsc → dist (.js + .d.ts) for the library and th
 pnpm publish:libs            # rewrites workspace:* → versions, publishes to the configured registry
 ```
 
-Versions live in each package's `package.json` (currently `0.11.0`); the `excalidraw-svelte`, `excalidraw-yjs`, and `excalidraw-relay` (server) packages are released together at the same version. A version tag push (e.g. `0.5.3`) publishes them automatically via `.github/workflows/publish.yml`, which asserts the tag matches all three package versions.
+Versions live in each package's `package.json` (currently `0.12.0`); the `excalidraw-svelte`, `excalidraw-yjs`, and `excalidraw-relay` (server) packages are released together at the same version. A version tag push (e.g. `0.5.3`) publishes them automatically via `.github/workflows/publish.yml`, which asserts the tag matches all three package versions.
 
 ## Develop
 
@@ -501,6 +502,16 @@ pnpm --filter excalidraw-web-app e2e                                # screenshot
     what was right-clicked, not merely on the selection. New core APIs:
     `styleOf`/`applyStyle`, `wrapSelectionInFrame`, `hitElement`, and store
     clipboard passthroughs; `zoomToFit` landed too.
+  - **Library & share (`web-library-and-share`):** a **library panel** —
+    import `.excalidrawlib` files (or an `.excalidraw` scene as one item),
+    click an item to stamp it on the canvas as a selected group, add the
+    current selection as a new item, remove items, and export the library
+    back out. Items live in browser storage, never in the document. And a
+    **share dialog** — start a collaboration session, copy the invite link,
+    see who is in the room, and leave; rooms are no longer URL-parameter-only.
+    The transport stays a host concern: the component takes a `collab` prop
+    (`start(room)` / `link(room)`), so the package carries no app-specific
+    wiring. Gateable via `uiOptions.library` / `uiOptions.share`.
   - **Table editing (`web-table-editing`):** right-clicking a table cell now
     offers **insert row above/below**, **insert column left/right**, **delete
     row**, and **delete column** — inserting shifts the following rows/columns

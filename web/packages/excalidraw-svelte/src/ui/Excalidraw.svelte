@@ -7,6 +7,7 @@ import type { Arrowhead, FillStyle, StrokeStyle, TextAlign } from "../model/inde
 import type { OverlayColors } from "../render/index.js";
 import { EditorStore } from "../svelte/editor-store.js";
 import ExcalidrawCanvas from "./ExcalidrawCanvas.svelte";
+import Library from "./Library.svelte";
 import {
   type ExportImageOptions,
   download,
@@ -32,6 +33,14 @@ interface Props {
   onReady?: (store: EditorStore) => void;
   /** Fires after each committed edit. */
   onChange?: (scene: Scene) => void;
+  /** Collaboration transport supplied by the host. When absent, the share
+   * dialog is hidden — the package stays free of app-specific wiring. */
+  collab?: {
+    /** Join/create `room` on the host's backend. */
+    start: (room: string) => void;
+    /** The invite URL for `room`, which the host's app knows how to join. */
+    link: (room: string) => string;
+  };
   /** Host chrome rendered alongside the built-in UI. */
   toolbarExtra?: Snippet;
   topRight?: Snippet;
@@ -46,6 +55,7 @@ const {
   zenMode,
   uiOptions,
   overlayColors,
+  collab,
   onReady,
   onChange,
   toolbarExtra,
@@ -134,6 +144,7 @@ const view = $derived.by(() => {
     offscreen: store.contentOffscreen,
     quickCreate: store.canQuickCreate,
     quickBounds: store.canQuickCreate ? store.controller.selectionBounds : null,
+    collaborating: store.isCollaborating,
   };
 });
 
@@ -232,6 +243,40 @@ const sel = $derived.by(() => {
 });
 // The "more tools" dropdown (extra tools + generators), excalidraw-style.
 let moreOpen = $state(false);
+// Library panel and share dialog.
+let libraryOpen = $state(false);
+let shareOpen = $state(false);
+let shareRoom = $state<string | null>(null);
+
+const shareLink = $derived(
+  shareRoom !== null && collab !== undefined ? collab.link(shareRoom) : null,
+);
+
+let shareError = $state<string | null>(null);
+
+function startSharing(): void {
+  if (collab === undefined) return;
+  const room = `room-${Math.random().toString(36).slice(2, 8)}`;
+  shareError = null;
+  try {
+    collab.start(room);
+    shareRoom = room; // the link is shown only once the transport accepted
+  } catch (e) {
+    shareError = e instanceof Error ? e.message : "Could not start the session.";
+  }
+}
+function stopSharing(): void {
+  store.stopCollab();
+  shareRoom = null;
+}
+async function copyShareLink(): Promise<void> {
+  if (shareLink === null) return;
+  try {
+    await navigator.clipboard.writeText(shareLink);
+  } catch {
+    /* clipboard denied — the link is on screen to copy by hand */
+  }
+}
 // App menu (file flows), export dialog, and help overlay.
 let appMenuOpen = $state(false);
 let helpOpen = $state(false);
@@ -505,6 +550,22 @@ const commands: Command[] = [
     },
   },
   { id: "reset", label: "Reset canvas", keywords: "reset clear", run: () => store.resetScene() },
+  {
+    id: "library",
+    label: "Library",
+    keywords: "library excalidrawlib items",
+    run: () => {
+      libraryOpen = true;
+    },
+  },
+  {
+    id: "share",
+    label: "Live collaboration",
+    keywords: "share collaborate room invite",
+    run: () => {
+      shareOpen = true;
+    },
+  },
   {
     id: "help",
     label: "Keyboard shortcuts",
@@ -943,6 +1004,9 @@ function onKeydown(e: KeyboardEvent): void {
             <button data-testid="ctx-col-delete" disabled={!store.canDeleteTableColumn(menuCell)} onclick={() => runMenu(() => store.deleteTableColumn(menuCell))}>Delete column</button>
             <div class="ctx-sep"></div>
           {/if}
+          {#if ctxOpts !== null && ctxOpts.library}
+            <button data-testid="ctx-add-library" onclick={() => runMenu(() => store.addSelectionToLibrary())}>Add to library</button>
+          {/if}
           <button data-testid="ctx-wrap-frame" onclick={() => runMenu(() => store.wrapSelectionInFrame())}>Wrap selection in frame</button>
           <button data-testid="ctx-snap-shape" onclick={() => runMenu(() => store.recognizeSelectedStroke())}>Snap to shape</button>
           <div class="ctx-sep"></div>
@@ -1336,6 +1400,12 @@ function onKeydown(e: KeyboardEvent): void {
         {#if menuOpts !== null && menuOpts.theme}
         <button class="menu-item" data-testid="menu-theme" onclick={() => { appMenuOpen = false; store.toggleTheme(); }}>{view.theme === "light" ? "Dark theme" : "Light theme"}</button>
         {/if}
+        {#if ui.library}
+        <button class="menu-item" data-testid="menu-library" onclick={() => { appMenuOpen = false; libraryOpen = true; }}>Library</button>
+        {/if}
+        {#if ui.share && collab !== undefined}
+        <button class="menu-item" data-testid="menu-share" onclick={() => { appMenuOpen = false; shareOpen = true; }}>Live collaboration…</button>
+        {/if}
         {#if menuOpts !== null && menuOpts.help}
         <button class="menu-item" data-testid="menu-help" onclick={() => { appMenuOpen = false; helpOpen = true; }}>Help <kbd>?</kbd></button>
         {/if}
@@ -1420,6 +1490,42 @@ function onKeydown(e: KeyboardEvent): void {
         </section>
       </div>
       <button class="chip" data-testid="help-close" onclick={() => { helpOpen = false; }}>Close</button>
+    </div>
+  {/if}
+
+  {#if libraryOpen && ui.library && !view.zen}
+    <Library {store} {rev} onClose={() => { libraryOpen = false; }} />
+  {/if}
+
+  {#if shareOpen && ui.share && collab !== undefined}
+    <button type="button" class="menu-backdrop" aria-label="Close share dialog" onclick={() => { shareOpen = false; }}></button>
+    <div class="island dialog" data-testid="share-dialog" role="dialog" aria-label="Live collaboration">
+      <h3>Live collaboration</h3>
+      {#if shareRoom === null}
+        <p class="dim">Start a session and share the link — everyone editing sees the same canvas.</p>
+        <button class="chip" data-testid="share-start" onclick={startSharing}>Start session</button>
+        {#if shareError !== null}
+          <p class="error" data-testid="share-error" role="alert">{shareError}</p>
+        {/if}
+      {:else}
+        <label class="inline">Invite link
+          <input class="share-link" data-testid="share-link" type="text" readonly value={shareLink ?? ""} />
+        </label>
+        <div class="row wrap">
+          <button class="chip" data-testid="share-copy" onclick={() => void copyShareLink()}>Copy link</button>
+          <button class="chip" data-testid="share-leave" onclick={stopSharing}>Leave</button>
+        </div>
+        <div>
+          <h4>In this room</h4>
+          <span class="peers" data-testid="share-peers">
+            {#each view.peers as p (p.id)}
+              <span class="peer" style="background:{p.color}" title={p.name}>{p.name}</span>
+            {/each}
+            {#if view.peers.length === 0}<span class="dim">Waiting for others…</span>{/if}
+          </span>
+        </div>
+      {/if}
+      <button class="chip" data-testid="share-close" onclick={() => { shareOpen = false; }}>Close</button>
     </div>
   {/if}
 
@@ -1850,6 +1956,18 @@ function onKeydown(e: KeyboardEvent): void {
 
   .top-right-slot { position: absolute; top: 16px; right: 16px; z-index: 6; }
   .footer-slot { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 6; }
+
+  .share-link {
+    width: 260px;
+    padding: 6px 8px;
+    font: 12px ui-monospace, Menlo, monospace;
+    color: var(--excal-ink);
+    background: transparent;
+    border: 1px solid var(--excal-border);
+    border-radius: 6px;
+  }
+  .dim { color: var(--excal-muted); font-size: 12.5px; margin: 0; }
+  .error { margin: 0; font-size: 12.5px; color: #e03131; }
 
   /* ── smart canvas: quick arrows, pill, palette ──────────────────────── */
   .quick-arrow {

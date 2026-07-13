@@ -18,6 +18,7 @@ export interface ContextMenuOptions {
   styles?: boolean; // copy/paste styles
   frame?: boolean; // wrap in frame
   table?: boolean; // insert/delete table rows and columns
+  library?: boolean; // add selection to library
   shapeRecognition?: boolean; // snap to shape
   duplicate?: boolean;
   grouping?: boolean;
@@ -49,6 +50,10 @@ export interface GeneratorOptions {
 export interface UIOptions {
   toolbar?: boolean | ToolbarOptions;
   panel?: boolean;
+  /** The library panel (.excalidrawlib import / insert / export). */
+  library?: boolean;
+  /** The share dialog (only shown when the host supplies a `collab` prop). */
+  share?: boolean;
   menu?: boolean | MenuOptions;
   contextMenu?: boolean | ContextMenuOptions;
   palette?: boolean;
@@ -66,6 +71,8 @@ export interface UIOptions {
 export interface ResolvedUIOptions {
   toolbar: false | Required<ToolbarOptions>;
   panel: boolean;
+  library: boolean;
+  share: boolean;
   menu: false | Required<MenuOptions>;
   contextMenu: false | Required<ContextMenuOptions>;
   palette: boolean;
@@ -112,6 +119,7 @@ const defaultContextMenu: Required<ContextMenuOptions> = {
   styles: true,
   frame: true,
   table: true,
+  library: true,
   shapeRecognition: true,
   duplicate: true,
   grouping: true,
@@ -132,6 +140,8 @@ const defaultGenerators: Required<GeneratorOptions> = {
 export const defaultUIOptions: ResolvedUIOptions = {
   toolbar: defaultToolbar,
   panel: true,
+  library: true,
+  share: true,
   menu: defaultMenu,
   contextMenu: defaultContextMenu,
   palette: true,
@@ -160,6 +170,8 @@ export function resolveUIOptions(options: UIOptions = {}): ResolvedUIOptions {
   return {
     toolbar: section(options.toolbar, defaultToolbar),
     panel: options.panel ?? true,
+    library: options.library ?? true,
+    share: options.share ?? true,
     menu: section(options.menu, defaultMenu),
     contextMenu: section(options.contextMenu, defaultContextMenu),
     palette: options.palette ?? true,

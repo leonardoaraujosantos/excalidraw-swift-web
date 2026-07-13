@@ -90,7 +90,7 @@ landed earlier with Phase 1.
    `persistence` capability.
 4. **Help overlay** (`?`) with the shortcut map.
 
-## Phase 4 — Smart features & polish (P3)
+## Phase 4 — Smart features & polish (P3) — ✅ complete
 
 1. **Flowchart quick-create** — ✅ implemented (`web-smart-canvas`, 2026-07-11):
    Cmd/Ctrl+arrow spawning and hover quick-arrow buttons.
@@ -98,9 +98,25 @@ landed earlier with Phase 1.
    scroll-back-to-content pill, grid + snap toggles (the grid was declared in
    `RenderOptions` but never drawn — now implemented), zen mode, command
    palette, plus freehand shape recognition ("Snap to shape").
-3. **Library panel** — `.excalidrawlib` import/insert (`file-format` spec).
-4. **Share/collab UI** — a dialog around the existing relay/Yjs collab so
-   rooms aren't URL-parameter-only.
+3. **Library panel** — ✅ implemented (`web-library-and-share`, 2026-07-12):
+   `.excalidrawlib` import/insert/export, add-selection, remove, persisted in
+   browser storage.
+4. **Share/collab UI** — ✅ implemented (`web-library-and-share`): a dialog
+   that starts a session, shows the invite link, lists peers, and leaves —
+   rooms are no longer URL-parameter-only.
+
+## Status — roadmap complete (2026-07-12)
+
+All four phases are implemented and released (0.7.0 → 0.12.0). Beyond the
+original scope, the editor also became **embeddable and customizable**
+(`web-embeddable-editor`): it ships as a configurable `<Excalidraw>` component
+with `uiOptions`, theming, view mode, and slots.
+
+Notable discoveries along the way — features that were *implemented in the core
+but unreachable from the UI* (`toolLocked`, `addFlowchartNode`,
+`recognizeFreedraw`, `snapEnabled`, `zenMode`, the `.excalidrawlib` codec, both
+collab backends) and two that were *declared but never implemented* (the render
+grid, and the hand tool's pan).
 
 ## Process
 

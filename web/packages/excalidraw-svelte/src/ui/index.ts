@@ -18,3 +18,4 @@ export {
   exportPngBytes,
   exportSvgString,
 } from "./export-image.js";
+export { default as Library } from "./Library.svelte";
