@@ -387,6 +387,94 @@ function minimalPng(): Uint8Array {
   ]);
 }
 
+describe("library", () => {
+  function drawRect(store: EditorStore, x = 100) {
+    store.selectTool("rectangle");
+    store.pointer("down", new Point(x, 100));
+    store.pointer("move", new Point(x + 80, 180));
+    store.pointer("up", new Point(x + 80, 180));
+  }
+
+  it("imports a .excalidrawlib (v2) and a plain .excalidraw scene as one item", () => {
+    const store = new EditorStore();
+    store.libraryItems = [];
+    const lib = JSON.stringify({
+      type: "excalidrawlib",
+      version: 2,
+      libraryItems: [
+        { elements: [{ id: "a", type: "rectangle", x: 0, y: 0, width: 10, height: 10 }] },
+        { elements: [{ id: "b", type: "ellipse", x: 0, y: 0, width: 10, height: 10 }] },
+      ],
+    });
+    expect(store.importLibrary(lib)).toBe(2);
+    expect(store.libraryItems).toHaveLength(2);
+
+    // A scene document imports as a single item.
+    const source = new EditorStore();
+    drawRect(source);
+    expect(store.importLibrary(source.documentJSON())).toBe(1);
+    expect(store.libraryItems).toHaveLength(3);
+
+    // Importing never touches the scene.
+    expect(store.scene.visibleElements).toHaveLength(0);
+  });
+
+  it("inserts an item as a selected group without consuming it", () => {
+    const store = new EditorStore();
+    store.libraryItems = [];
+    drawRect(store);
+    drawRect(store, 300);
+    store.selectAll();
+    expect(store.addSelectionToLibrary()).toBe(true);
+    expect(store.libraryItems).toHaveLength(1);
+
+    const before = store.scene.visibleElements.length;
+    store.insertLibraryItem(0, new Point(600, 600));
+    const added = store.scene.visibleElements.length - before;
+    expect(added).toBe(2); // the item's two elements
+    expect(store.selectedCount).toBe(2); // …left selected…
+    const inserted = store.controller.selectedElements;
+    expect(inserted.every((el) => el.groupIds.length > 0)).toBe(true); // …as a group
+    expect(store.libraryItems).toHaveLength(1); // the item is still in the library
+  });
+
+  it("removes an item and round-trips the library through export", () => {
+    const store = new EditorStore();
+    store.libraryItems = [];
+    drawRect(store);
+    store.selectAll();
+    store.addSelectionToLibrary();
+    drawRect(store, 400);
+    store.selectAll();
+    store.addSelectionToLibrary();
+    expect(store.libraryItems).toHaveLength(2);
+
+    const json = store.exportLibrary();
+    expect(JSON.parse(json).type).toBe("excalidrawlib");
+
+    store.removeLibraryItem(0);
+    expect(store.libraryItems).toHaveLength(1);
+
+    const reopened = new EditorStore();
+    reopened.libraryItems = [];
+    expect(reopened.importLibrary(json)).toBe(2); // the export carried both
+  });
+
+  it("ignores malformed library input", () => {
+    const store = new EditorStore();
+    store.libraryItems = [];
+    expect(store.importLibrary("not json")).toBe(0);
+    expect(store.importLibrary("{}")).toBe(0);
+    expect(store.libraryItems).toHaveLength(0);
+  });
+
+  it("exposes the collaboration view (solo by default)", () => {
+    const store = new EditorStore();
+    expect(store.isCollaborating).toBe(false);
+    expect(store.collabPeers).toEqual([]);
+  });
+});
+
 describe("table row & column editing", () => {
   /** A 3x3 table; returns cell/label accessors plus a lookup by (row, col). */
   function table(store: EditorStore) {

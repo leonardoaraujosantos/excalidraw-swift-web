@@ -9,6 +9,7 @@ const viewMode = params.get("viewMode") === "1";
 const themed = params.get("themed") === "1";
 const minimal = params.get("minimal") === "1";
 const noTable = params.get("noTable") === "1";
+const noLibraryShare = params.get("noLibraryShare") === "1";
 
 // A deliberately reduced UI: three tools, no style panel, no app menu.
 const uiOptions: UIOptions | undefined = minimal
@@ -20,7 +21,9 @@ const uiOptions: UIOptions | undefined = minimal
     }
   : noTable
     ? { contextMenu: { table: false } }
-    : undefined;
+    : noLibraryShare
+      ? { library: false, share: false }
+      : undefined;
 
 let changes = $state(0);
 function onReady(store: EditorStore): void {

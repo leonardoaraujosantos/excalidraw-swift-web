@@ -22,7 +22,29 @@ const peerOf = () => ({
   color: palette[Math.floor(Math.random() * palette.length)]!,
 });
 
+/** The share dialog asks the host to start a session and to build the invite
+ * link — the transport (relay vs Yjs, which URL) stays an app concern. */
+const relayBase = params.get("relay") ?? "ws://localhost:3001/ws";
+const collab = {
+  start: (room: string) => {
+    editor?.startCollab(
+      reconnectingSocket(() => browserSocket(relayBase)),
+      peerOf(),
+      room,
+    );
+  },
+  link: (room: string) => {
+    const url = new URL(location.href);
+    url.searchParams.set("relay", relayBase);
+    url.searchParams.set("room", room);
+    return url.toString();
+  },
+};
+
+let editor: EditorStore | undefined;
+
 function onReady(store: EditorStore): void {
+  editor = store;
   // Expose the store and the export pipeline for the E2E suite.
   (window as unknown as { __store?: EditorStore }).__store = store;
   (window as unknown as { __exportPng?: () => Promise<Uint8Array | null> }).__exportPng = () =>
@@ -58,4 +80,4 @@ function onReady(store: EditorStore): void {
 }
 </script>
 
-<Excalidraw {onReady} />
+<Excalidraw {onReady} {collab} />

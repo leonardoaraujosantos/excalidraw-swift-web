@@ -18,6 +18,11 @@ import {
   SceneDocument,
   type StrokeStyle,
   type TextAlign,
+  decodeFile,
+  decodeLibrary,
+  encodeFile,
+  encodeLibrary,
+  makeFile,
 } from "../model/index.js";
 import type { Peer } from "../protocol/index.js";
 import { reconcileElements } from "../protocol/index.js";
@@ -449,6 +454,79 @@ export class EditorStore {
   toggleToolLock(): void {
     this.controller.toolLocked = !this.controller.toolLocked;
     this.bump();
+  }
+
+  // MARK: Library (.excalidrawlib)
+
+  /** Reusable element groups. A user asset, not document content: never part
+   * of the scene, never synced — persisted host-side in localStorage. */
+  libraryItems: ExcalidrawElement[][] = loadLibrary();
+
+  /** Merge a `.excalidrawlib` (or a plain `.excalidraw` scene, as one item)
+   * into the library. Never touches the scene. Returns the items added. */
+  importLibrary(json: string): number {
+    let added: ExcalidrawElement[][] = [];
+    try {
+      const parsed = JSON.parse(json) as { type?: string };
+      added =
+        parsed.type === "excalidraw"
+          ? [decodeFile(json).elements].filter((g) => g.length > 0)
+          : decodeLibrary(json).items.filter((g) => g.length > 0);
+    } catch {
+      return 0;
+    }
+    if (added.length === 0) return 0;
+    this.libraryItems = [...this.libraryItems, ...added];
+    saveLibrary(this.libraryItems);
+    this.bump();
+    return added.length;
+  }
+
+  /** The library as a `.excalidrawlib` document. */
+  exportLibrary(): string {
+    return encodeLibrary({ items: this.libraryItems });
+  }
+
+  /** Stamp a library item onto the canvas: re-id'd, grouped, and selected —
+   * it goes through the same paste path as the clipboard, so an inserted item
+   * behaves exactly like pasted content. */
+  insertLibraryItem(index: number, at: Point | null = null): void {
+    const item = this.libraryItems[index];
+    if (item === undefined || item.length === 0) return;
+    const before = new Set(this.scene.elements.map((e) => e.id));
+    this.controller.paste(encodeFile(makeFile({ elements: item, files: {} })));
+    const target = at ?? this.lastScenePoint ?? this.viewportCenterScene();
+    this.centreNewElements(before, target);
+    this.controller.group();
+    this.bump();
+  }
+
+  /** Add the current selection to the library (the scene is untouched). */
+  addSelectionToLibrary(): boolean {
+    const selected = this.controller.selectedElements;
+    if (selected.length === 0) return false;
+    this.libraryItems = [...this.libraryItems, selected.map((el) => ({ ...el }))];
+    saveLibrary(this.libraryItems);
+    this.bump();
+    return true;
+  }
+
+  removeLibraryItem(index: number): void {
+    if (this.libraryItems[index] === undefined) return;
+    this.libraryItems = this.libraryItems.filter((_, i) => i !== index);
+    saveLibrary(this.libraryItems);
+    this.bump();
+  }
+
+  // MARK: Collaboration (view)
+
+  /** Whether a collaboration session is active. */
+  get isCollaborating(): boolean {
+    return this.collab !== null;
+  }
+  /** The peers in the active session (empty when solo). */
+  get collabPeers(): Peer[] {
+    return this.collab === null ? [] : [...this.collab.peers.values()];
   }
 
   // MARK: Clipboard & styles
@@ -1188,5 +1266,26 @@ export class EditorStore {
   loadDocument(json: string): void {
     this.controller.load(SceneDocument.decode(json));
     this.bump();
+  }
+}
+
+/** Library persistence (host-side; guarded so non-DOM environments are fine). */
+const LIBRARY_KEY = "excalidraw-native:library";
+
+function loadLibrary(): ExcalidrawElement[][] {
+  try {
+    const raw = globalThis.localStorage?.getItem(LIBRARY_KEY);
+    if (raw === null || raw === undefined) return [];
+    return decodeLibrary(raw).items;
+  } catch {
+    return []; // storage unavailable (privacy mode, SSR) — the library just won't persist
+  }
+}
+
+function saveLibrary(items: ExcalidrawElement[][]): void {
+  try {
+    globalThis.localStorage?.setItem(LIBRARY_KEY, encodeLibrary({ items }, false));
+  } catch {
+    /* storage unavailable — ignore */
   }
 }
